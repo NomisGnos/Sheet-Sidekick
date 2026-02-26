@@ -1,0 +1,4164 @@
+/*hide player's left sidebar (must use light theme) */
+body.show-combat section#ui-left,
+body.show-combat div#combat-popout,
+body.show-combat form.application.sheet.user-config,
+body.show-combat nav#navigation
+{
+	display: none;
+}
+body.show-combat section.dice-tray,
+body.show-combat section#combat-popout,
+body.show-combat div#ginzzzu-portrait-layer button{
+	visibility: hidden;
+}
+
+/* Always hide combat popout on player clients */
+:is(body.ss-player-client, body.ss-player-client) section#combat-popout,
+:is(body.ss-player-client, body.ss-player-client) #combat-popout,
+:is(body.ss-player-client, body.ss-player-client) .combat-sidebar.sidebar-popout {
+	display: none !important;
+	visibility: hidden !important;
+}
+
+/* Monks Common Display monitor: keep ruler distance labels visible while hide-ui is active */
+:is(body.ss-monitor-client, body.ss-monitor-client).hide-ui #hud > .ruler,
+:is(body.ss-monitor-client, body.ss-monitor-client).hide-ui #hud > [class*="ruler"],
+:is(body.ss-monitor-client, body.ss-monitor-client).hide-ui #hud .ruler,
+:is(body.ss-monitor-client, body.ss-monitor-client).hide-ui #hud [class*="ruler"],
+:is(body.ss-monitor-client, body.ss-monitor-client).hide-ui > #measurement,
+:is(body.ss-monitor-client, body.ss-monitor-client).hide-ui #measurement,
+:is(body.ss-monitor-client, body.ss-monitor-client).hide-ui #hud #measurement,
+:is(body.ss-monitor-client, body.ss-monitor-client).hide-ui .illandril-grid-labels--ruler--container,
+:is(body.ss-monitor-client, body.ss-monitor-client).hide-ui .illandril-grid-labels--ruler--label {
+	display: block !important;
+	visibility: visible !important;
+	opacity: 1 !important;
+}
+
+:is(body.ss-monitor-client, body.ss-monitor-client).hide-ui #measurement .waypoint-label,
+:is(body.ss-monitor-client, body.ss-monitor-client).hide-ui #measurement .segment-label,
+:is(body.ss-monitor-client, body.ss-monitor-client).hide-ui #measurement .distance {
+	display: inline-block !important;
+	visibility: visible !important;
+	opacity: 1 !important;
+	color: #f5e8bf !important;
+	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9) !important;
+}
+
+:is(body.ss-monitor-client, body.ss-monitor-client).hide-ui #hud [class*="ruler"] * {
+	visibility: visible !important;
+	opacity: 1 !important;
+}
+
+/* Only sheet-sidekick player clients (not monitor/common-display) hide Show-Players popouts */
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) .application.image-popout,
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) .image-popout,
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) .application.journal-sheet,
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) .journal-sheet,
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) .application.journal-entry-page,
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) .journal-entry-page,
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) .application.window-app.journal-entry,
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) .app.window-app.journal-entry {
+	display: none !important;
+	visibility: hidden !important;
+	pointer-events: none !important;
+}
+
+/* Full-screen loading mask for slower tablets/phones */
+:is(body.ss-sheet-loading, body.ss-sheet-loading)::before {
+	content: "";
+	position: fixed;
+	inset: 0;
+	z-index: 2147483000;
+	background:
+		radial-gradient(circle at 50% 45%, rgba(38, 46, 63, 0.58) 0%, rgba(8, 12, 18, 0.94) 70%),
+		linear-gradient(160deg, rgba(6, 10, 16, 0.92), rgba(10, 14, 22, 0.98));
+}
+
+:is(body.ss-sheet-loading, body.ss-sheet-loading)::after {
+	content: "Loading .";
+	animation: ss-loading-dots 1.5s steps(3, end) infinite;
+	position: fixed;
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	z-index: 2147483001;
+	font-size: clamp(1.2rem, 2.8vw, 2rem);
+	letter-spacing: 0.04em;
+	padding: 0.6rem 0.95rem;
+	border-radius: 10px;
+	color: #f2e6be;
+	background: rgba(10, 14, 22, 0.78);
+	border: 1px solid rgba(214, 181, 109, 0.58);
+	box-shadow: 0 8px 28px rgba(0, 0, 0, 0.44);
+}
+
+:is(body.ss-sheet-loading, body.ss-sheet-loading) #board,
+:is(body.ss-sheet-loading, body.ss-sheet-loading) #hud,
+:is(body.ss-sheet-loading, body.ss-sheet-loading) #ui-top,
+:is(body.ss-sheet-loading, body.ss-sheet-loading) #ui-left,
+:is(body.ss-sheet-loading, body.ss-sheet-loading) #ui-right,
+:is(body.ss-sheet-loading, body.ss-sheet-loading) #ui-bottom,
+:is(body.ss-sheet-loading, body.ss-sheet-loading) #players,
+:is(body.ss-sheet-loading, body.ss-sheet-loading) #chat,
+:is(body.ss-sheet-loading, body.ss-sheet-loading) #hotbar,
+:is(body.ss-sheet-loading, body.ss-sheet-loading) #sidebar {
+	visibility: hidden !important;
+}
+
+@keyframes ss-loading-dots {
+	0%   { content: "Loading ."; }
+	33%  { content: "Loading .."; }
+	66%  { content: "Loading ..."; }
+	100% { content: "Loading ."; }
+}
+
+
+
+body.hide-ui #slideshow-display {
+	width: 85vw !important;
+	height: 85vw !important;
+	left: 10vw !important;
+	top: 0vh !important;
+}
+body.hide-ui #slideshow-display div.slide-background > div {
+	-webkit-filter: blur(13px);
+    -moz-filter: blur(13px);
+    -o-filter: blur(13px);
+    -ms-filter: blur(13px);
+    filter: blur(13px);
+}
+body.hide-ui .image-popout,
+body.hide-ui #slideshow-display {
+  width: 100vw !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+  position: sticky;
+  top: 0 !important;
+  left: 0 !important;
+  margin: 0 auto;
+  padding:0;
+  overflow: hidden;
+}
+
+body.hide-ui .image-popout img,
+body.hide-ui #slideshow-display img {
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  position: absolute;
+}
+
+@-webkit-keyframes move {
+  0% {
+    -webkit-transform-origin: bottom left;
+    -moz-transform-origin: bottom left;
+    -ms-transform-origin: bottom left;
+    -o-transform-origin: bottom left;
+    transform-origin: bottom left;
+    transform: scale(1.0);
+    -ms-transform: scale(1.0);
+    /* IE 9 */
+    
+    -webkit-transform: scale(1.0);
+    /* Safari and Chrome */
+    
+    -o-transform: scale(1.0);
+    /* Opera */
+    
+    -moz-transform: scale(1.0);
+    /* Firefox */
+  }
+  100% {
+    transform: scale(1.2);
+    -ms-transform: scale(1.2);
+    /* IE 9 */
+    
+    -webkit-transform: scale(1.2);
+    /* Safari and Chrome */
+    
+    -o-transform: scale(1.2);
+    /* Opera */
+    
+    -moz-transform: scale(1.2);
+    /* Firefox */
+  }
+}
+
+/* JOURNAL CSS */
+.journal-entry-content,
+.journal-entry-content p,
+.journal-entry-pages,
+.journal-entry-page .editor-content p
+ { font-size: 1.18em; }
+.journal-entry-page .editor-content h1 { font-size: 2.15em; }
+.journal-entry-page .editor-content h2 { font-size: 2em; }
+.journal-entry-page .editor-content h3 { font-size: 1.8em; }
+.journal-entry-page .editor-content h4 { font-size: 1.6em; }
+.journal-entry-page .editor-content h5 { font-size: 1.45em; }
+.journal-entry-page .editor-content a
+ { font-size: 95%; }
+.journal-entry-pages p:empty::before {
+  content: "\00a0"; /* non-breaking space */
+}
+
+
+@media (max-width: 603px) {
+	
+	.item-header[data-column-id="time"],
+	.item-detail[data-column-id="time"],
+	.item-header[data-column-id="roll"],
+	.item-detail[data-column-id="roll"],
+	.item-header[data-column-id="formula"],
+	.item-detail[data-column-id="formula"]{
+		display: flex;
+	}
+
+	nav#context-menu {
+		border: 2px ridge antiquewhite;
+		bottom: 1vh !important;
+		left: 33vw !important;
+	}
+
+	/* Sheets only fix */
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) {
+		position: fixed !important;
+		top: 0 !important;
+		left: 0 !important;
+		width: 100vw !important;
+		height: 100vh !important; /* fallback */
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) span.currency-label {
+		padding-left: 1.2em;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.currency input.uninput {
+		zoom:1.1;
+		font-size:larger
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.spells-list .item-name {
+		display: block !important;
+		text-wrap:auto;
+		word-wrap:break-word;
+		overflow-wrap:anywhere;
+		min-width: 30vw;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.spells-list .item-name img {
+		min-width:22px;
+		width: 22px;
+		height: 22px;
+		min-height: 22px;
+		float: left;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.spells-list .item-control i { font-size: 1.25em !important; }
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.spells-list .item-name * { font-size: 1em !important; padding-left: .25em;}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.spells-list .item-name .tags {  display: block !important; }
+	button[aria-label='Close Window'] {
+		zoom: 1.5 !important;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) ~ dialog.application {
+		border: 3px solid orange;
+		height: 50vh !important;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.spells-list div.pips{
+		zoom: 1.5;
+		top: -1.1em !important;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.spells-list div.items-section.card {
+		margin-top:1.2em;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) ~ aside#tooltip {
+	  display: none !important;
+	}
+
+	body.show-weapon-tooltip :is(form.sheet-sidekick-sheet, form.ss-sheet) ~ aside#tooltip {
+	  display: block !important;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.window-content header.sheet-header {
+		margin-bottom: 5vh !important;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) div.sheet-body div.sidebar {
+		margin-top:5vh;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) button.sidebar-collapser {
+		background-color: lightsteelblue !important;
+		zoom: 1.75;
+		margin-top:24vh;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.ability-scores div.bottom {
+		margin-top: 3vh !important;
+		zoom: .9;
+	}
+	section[data-tab="details"] {
+		margin-top: 6vh !important;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .weapon-inline-stats {
+		font-size: 1em !important;
+		padding: 5px;
+		margin-top: 5px;
+		margin-left: 1em;
+		border-radius: 5px;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) i.fa-shield-halved {
+		font-size: 1.5em;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .weapon-inline-stats div {
+		padding-bottom: 1px;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .weapon-inline-stats div:nth-child(odd) {
+		text-align:right;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .weapon-inline-stats div:nth-child(even) {
+		text-align:center;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .filter-list {
+	  display: none;
+	  position: absolute;
+	  background: #1a1a1a;
+	  z-index: 9999;
+	  border: 1px solid #444;
+	  padding: 0.25em;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .filter-list.visible {
+	  display: block !important;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) button[aria-label="Toggle Description"] {
+		zoom: 1.2;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) button[data-action="prepare"] {
+		zoom: 1.2;
+		margin-right:1rem;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) button[aria-label="Additional Controls"],
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) a.control[data-tab="specialTraits"],
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) a.control[data-tab="bastion"],
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) a.control[data-tab="biography"]
+	{
+		display:none !important;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) button.create-child{
+		display:none !important;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) div.item-summary p {
+		font-size: 130%;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) div.item-summary ul * {
+		font-size: 110%;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) div.item-summary span.tag {
+		font-size: 110%;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) ~ .app.window-app.item.sheet {
+		border: 3px solid orange !important;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) header a:not(.close) {
+		display: none !important;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) ~ .app.window-app.item.sheet header a.close {
+		zoom: 2;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right {
+		top: 16vh !important;
+		right: 0 !important;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right {
+	  display: flex;
+	  justify-content: space-between; /* optional: can use 'center' or 'start' */
+	  align-items: stretch;
+	  width: 100%;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right .control.active{
+		background-color:white !important;
+		margin: .1em !important;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.item {
+	  flex: 1;
+	  width: 15vw !important;
+	  height: 5vh !important;
+	  text-align: center;
+	  background: #ddd;
+	  text-decoration: none;
+	  border: 1px solid #aaa;
+	  padding-top: 1rem;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right .control::after {
+	  content: attr(aria-label) !important;
+	  font-weight:bold;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.tab {
+		zoom: 1.2;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.tab.active[data-tab="details"] {
+		display: flex !important;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.tab.active[data-tab="details"] {
+		display: flex !important;
+	}
+	.dnd5e2.sheet.actor.character .sheet-header > .left {
+		padding-left: 1vw !important;
+	}
+	.dnd5e2.sheet.actor.character .sheet-header > div.document-name {
+		font-size: 2rem;
+	}
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) header.window-header button[data-action="close"] {display:none !important;}
+
+	/* Scope to the D&D5e sheet list to win specificity */
+	.dnd5e2.chips-view .item-list .item-row {
+	  /* Make the whole row a responsive grid */
+	  display: grid !important;
+	  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+	  gap: 6px 10px;
+	  align-items: center;
+	}
+
+	/* Name bar spans full width on top */
+	.dnd5e2.chips-view .item-list .item-row .item-name {
+	  grid-column: 1 / -1;
+	  min-width: 0;
+	}
+
+	/* Controls sit at the end, but don’t force a new line unless needed */
+	.dnd5e2.chips-view .item-list .item-row .item-controls,
+	.dnd5e2.chips-view .item-list .item-row .item-detail.item-controls {
+	  justify-self: end;
+	}
+
+	/* Each detail becomes a compact "Label: value" chip */
+	.dnd5e2.chips-view .item-list .item-row .item-detail {
+	  display: inline;
+	  grid-template-columns: max-content 1fr;
+	  align-items: center;
+	  column-gap: 6px;
+	  min-width: 0;            /* allow shrinking */
+	  width: auto !important;  /* beat any fixed widths like .hidden-width */
+	  text-align: left;
+	}
+
+	/* Human-friendly labels via the column id */
+	.dnd5e2.chips-view .item-list .item-row .item-detail::before {
+	  opacity: 0.8;
+	  font-weight: 600;
+	  justify-self: end;
+	  /* Nice labels without editing HTML */
+	  content: attr(data-column-id) ": ";
+	  text-transform: capitalize;   /* time -> Time, formula -> Formula, etc. */
+	  float: left;
+	  width: 40vw;
+	  text-align: left;
+	  margin-left: 4vw;
+	  margin-right: 5px;
+	  border-bottom: none;
+	  color: var(--color-text-primary);
+	}
+
+	/* Map specific prettier labels if you want */
+	.dnd5e2.chips-view .item-list .item-row .item-time::before    { content: "Time: "; }
+	.dnd5e2.chips-view .item-list .item-row .item-formula::before { content: "Formula: "; }
+	.dnd5e2.chips-view .item-list .item-row .item-roll::before    { content: "Roll: "; }
+	.dnd5e2.chips-view .item-list .item-row .item-range::before   { content: "Range: "; }
+	.dnd5e2.chips-view .item-list .item-row .item-target::before  { content: "Target: "; }
+	.dnd5e2.chips-view .item-list .item-row .item-uses::before    { content: "Uses: "; }
+	.dnd5e2.chips-view .item-list .item-row .item-school::before  { content: "School: "; }
+	.dnd5e2.chips-view .spells-list .item-list .item-row .item-controls::before  { content: "Prepared?: ";	}
+	.dnd5e2.chips-view .inventory-list .item-list .item-row .item-controls::before  { content: "Equipped?: "; }
+
+	.dnd5e2.chips-view .item-list .item-row .item-roll .stacked { align-items: baseline; }
+	
+	.dnd5e2.chips-view .item-list .item-row .item-controls, .dnd5e2.chips-view .item-list .item-row .item-detail.item-controls {
+		justify-self: auto;
+		margin-left: 1em;
+	}
+	.dnd5e2.chips-view .item-list .item-row .item-controls, .dnd5e2.chips-view .item-list .item-row .item-detail.item-controls::before {
+		margin-left: 0;
+	}
+	
+
+	/* Show a dash if a detail is truly empty, but don't waste space */
+	.dnd5e2.chips-view .item-list .item-row .item-detail.empty::after {
+	  content: "—";
+	  opacity: 0.7;
+	}
+	.dnd5e2.chips-view .item-list .item-row .item-detail.empty {
+		display: none;
+	}
+
+	/* Prevent long values from breaking layout; truncate nicely */
+	.dnd5e2.chips-view .item-list .item-row .item-detail > * {
+	  min-width: 0;
+	  white-space: nowrap;
+	  overflow: hidden;
+	  text-overflow: ellipsis;
+	}
+
+	/* When expanded, the description/summary should span the full width under chips */
+	.dnd5e2.chips-view .item-list .item-row .item-summary,
+	.dnd5e2.chips-view .item-list .item-row .item-description {
+	  grid-column: 1 / -1;
+	}
+
+	/* Kill any legacy fixed/min widths that cause the huge blank space */
+	.dnd5e2.chips-view .item-list .item-row .hidden-width {
+	  width: auto !important;
+	  min-width: 0 !important;
+	  max-width: none !important;
+	}
+
+	/* Optional: tighten vertical rhythm a bit */
+	.dnd5e2.chips-view .item-list .item-row { padding-block: 6px; }
+
+	/* Optional: tighten vertical rhythm a bit */
+	.dnd5e2 .item-list .item-row { padding-block: 6px; }
+	/* Tiny header toggle button */
+	.chips-toggle {
+	  all: unset;
+	  cursor: pointer;
+	  font-size: 1.1rem;
+	  line-height: 1;
+	  padding: .2rem .45rem;
+	  border-radius: .5rem;
+	  border: 1px solid var(--color-border-light-2, #666);
+	  margin-bottom: .25rem;
+	}
+	.chips-toggle[aria-pressed="true"] {
+	  background: var(--color-border-light-2, #666);
+	  color: var(--color-text-light-highlight, #fff);
+	}
+
+
+	/* other mobile changes */
+	:is(.sheet-sidekick-sheet, .ss-sheet) {
+		overflow: hidden !important;
+	}
+	
+	form.application.sheet.user-config,
+	ol#notifications {
+		display: none;
+	}
+	
+	:is(.sheet-sidekick-sheet, .ss-sheet).dnd5e2.sheet.actor.character nav.tabs > .item {
+		min-height: 2.5rem;
+	}
+
+	div#interface { display: none; }
+	
+}
+
+/* Sheet Sidekick controls cleanup */
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-controls [data-context-menu] {
+	display: none !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-controls .ss-tooltip-btn {
+	order: 99;
+	margin-left: 0.35rem !important;
+	margin-top: 0 !important;
+	align-self: center;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-native-toggle,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) button[aria-label="Toggle Description"].ss-native-toggle {
+	display: none !important;
+}
+
+/* Sheet Sidekick UI polish */
+:is(form.sheet-sidekick-sheet, form.ss-sheet) {
+	--ss-space-1: clamp(0.25rem, 0.6vw, 0.5rem);
+	--ss-space-2: clamp(0.5rem, 1.1vw, 0.85rem);
+	--ss-space-3: clamp(0.7rem, 1.4vw, 1.1rem);
+	--ss-nav-bottom-offset: max(0.35rem, env(safe-area-inset-bottom, 0px));
+	--ss-bottom-nav-pad: calc(7.45rem + env(safe-area-inset-bottom, 0px));
+}
+
+:is(body.ss-ios-safari, body.ss-ios-safari) :is(form.sheet-sidekick-sheet, form.ss-sheet) {
+	--ss-nav-bottom-offset: max(1.05rem, calc(env(safe-area-inset-bottom, 0px) + 0.65rem));
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .window-content {
+	padding: var(--ss-space-2) !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) section.window-content header.sheet-header {
+	position: sticky;
+	top: 0;
+	z-index: 20;
+	margin-bottom: var(--ss-space-2) !important;
+	padding: var(--ss-space-1) var(--ss-space-2) !important;
+	border-radius: 10px;
+	border: 1px solid var(--color-border-light-2, #666);
+	background: var(--color-bg-option, rgba(30, 34, 40, 0.92));
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .sheet-header > .left {
+	padding-left: 0.35rem !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .sheet-header .document-name,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .sheet-header .document-name input {
+	font-size: clamp(1.2rem, 2.4vw, 1.85rem) !important;
+	line-height: 1.15;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right {
+	position: sticky !important;
+	top: 0 !important;
+	right: auto !important;
+	z-index: 19;
+	display: grid !important;
+	grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+	gap: var(--ss-space-1);
+	margin: 0 0 0 0 !important;
+	padding: 0 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.item,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.item.control {
+	width: auto !important;
+	height: auto !important;
+	min-height: 2.4rem;
+	padding: 0.45rem 0.5rem !important;
+	border-radius: 8px;
+	border: 1px solid var(--color-border-light-2, #666);
+	background: var(--color-bg-option, #ddd);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right .control.active {
+	margin: 0 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-list .item-row {
+	padding-block: 0.45rem !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-list .item-controls {
+	display: flex;
+	align-items: center;
+	gap: 0.3rem;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-list .item-control,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-list .ss-tooltip-btn {
+	min-width: 1.8rem;
+	min-height: 1.8rem;
+}
+
+/* Bottom gamepad tab + fullscreen DPAD overlay */
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.ss-dpad-fs-toggle {
+	position: relative;
+	display: flex !important;
+	visibility: visible !important;
+	pointer-events: auto !important;
+	opacity: 1 !important;
+	flex: 1 1 0 !important;
+	order: 999 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.ss-dpad-fs-toggle {
+	position: relative;
+	display: flex !important;
+	visibility: visible !important;
+	pointer-events: auto !important;
+	opacity: 1 !important;
+	flex: 1 1 0 !important;
+	order: 999 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.ss-dpad-fs-toggle::after {
+	content: "Gamepad" !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.ss-target-fs-toggle::after {
+	content: "Targets" !important;
+}
+
+/* Override mobile rule that hides all header anchors */
+:is(form.sheet-sidekick-sheet, form.ss-sheet) header nav.tabs-right a.ss-dpad-fs-toggle,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.ss-dpad-fs-toggle,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) header nav.tabs a.ss-dpad-fs-toggle,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.ss-dpad-fs-toggle {
+	display: flex !important;
+	visibility: visible !important;
+	opacity: 1 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) header nav.tabs-right a.ss-target-fs-toggle,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.ss-target-fs-toggle,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) header nav.tabs a.ss-target-fs-toggle,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.ss-target-fs-toggle {
+	display: flex !important;
+	visibility: visible !important;
+	opacity: 1 !important;
+}
+
+/* Allow JS to force-hide the Gamepad tab when GM disables DPAD */
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.ss-dpad-fs-toggle.ss-dpad-hidden,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.ss-dpad-fs-toggle.ss-dpad-hidden,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) header nav.tabs-right a.ss-dpad-fs-toggle.ss-dpad-hidden,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) header nav.tabs a.ss-dpad-fs-toggle.ss-dpad-hidden,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.ss-target-fs-toggle.ss-dpad-hidden,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.ss-target-fs-toggle.ss-dpad-hidden,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) header nav.tabs-right a.ss-target-fs-toggle.ss-dpad-hidden,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) header nav.tabs a.ss-target-fs-toggle.ss-dpad-hidden {
+	display: none !important;
+	visibility: hidden !important;
+	opacity: 0 !important;
+	pointer-events: none !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-dpad-fs-overlay {
+	display: none;
+	position: fixed;
+	inset: 0;
+	z-index: 999999;
+	grid-template-columns: 84px 84px 84px;
+	grid-template-rows: 84px 84px 84px;
+	place-content: center;
+	gap: 10px;
+	padding: 16px;
+	background: rgba(6, 10, 14, 0.74);
+	backdrop-filter: blur(6px);
+	-webkit-backdrop-filter: blur(6px);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-dpad-fs-open .ss-dpad-fs-overlay {
+	display: grid !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-dpad-fs-overlay button {
+	border-radius: 14px;
+	border: 1px solid rgba(255, 255, 255, 0.25);
+	background: rgba(30, 30, 30, 0.78);
+	color: #fff;
+	font-size: 28px;
+	line-height: 1;
+	touch-action: none;
+	-webkit-tap-highlight-color: transparent;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-dpad-fs-overlay .ss-dpad-lock-note {
+	grid-column: 2;
+	grid-row: 2;
+	display: none;
+	align-content: center;
+	justify-items: center;
+	gap: 0.22rem;
+	padding: 0.45rem 0.5rem;
+	border-radius: 12px;
+	border: 1px solid rgba(214, 181, 109, 0.48);
+	background: rgba(110, 82, 19, 0.12);
+	color: rgba(245, 234, 202, 0.98);
+	text-align: center;
+	box-shadow: 0 0 0 1px rgba(214, 181, 109, 0.14), 0 10px 18px rgba(0, 0, 0, 0.2);
+	pointer-events: none;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-dpad-fs-overlay.ss-turn-locked .ss-dpad-lock-note {
+	display: grid;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-dpad-lock-title {
+	font-size: 0.7rem;
+	font-weight: 800;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: #ffd77d;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-dpad-lock-text {
+	font-size: 0.7rem;
+	line-height: 1.15;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-dpad-lock-text strong {
+	color: #ffd77d;
+	font-weight: 800;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-dpad-fs-overlay button.ss-dpad-dir-btn.ss-turn-locked:disabled {
+	opacity: 1;
+	border-color: rgba(214, 181, 109, 0.55);
+	background: repeating-linear-gradient(
+		-45deg,
+		rgba(78, 60, 22, 0.78),
+		rgba(78, 60, 22, 0.78) 8px,
+		rgba(58, 45, 17, 0.78) 8px,
+		rgba(58, 45, 17, 0.78) 16px
+	);
+	color: rgba(243, 228, 188, 0.9);
+	cursor: not-allowed;
+	filter: saturate(0.85);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-panel-overlay {
+	display: none;
+	position: fixed;
+	inset: 0;
+	z-index: 999998;
+	padding: max(0.65rem, env(safe-area-inset-top, 0px))
+		max(0.65rem, env(safe-area-inset-right, 0px))
+		max(0.65rem, env(safe-area-inset-bottom, 0px))
+		max(0.65rem, env(safe-area-inset-left, 0px));
+	background: rgba(6, 10, 14, 0.68);
+	backdrop-filter: blur(5px);
+	-webkit-backdrop-filter: blur(5px);
+	align-items: center;
+	justify-content: center;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-target-panel-open .ss-target-panel-overlay {
+	display: flex !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-panel {
+	width: min(760px, 96vw);
+	max-height: min(84vh, 860px);
+	display: grid;
+	grid-template-rows: auto auto 1fr auto;
+	gap: 0.65rem;
+	padding: 0.85rem;
+	border-radius: 12px;
+	border: 1px solid rgba(214, 181, 109, 0.5);
+	background: linear-gradient(180deg, rgba(15, 19, 28, 0.98), rgba(10, 13, 21, 0.98));
+	box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-panel.ss-turn-locked {
+	border-color: rgba(214, 181, 109, 0.62);
+	box-shadow: 0 0 0 1px rgba(214, 181, 109, 0.18), 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-panel-header {
+	font-size: clamp(1.02rem, 0.95rem + 0.28vw, 1.16rem);
+	font-weight: 800;
+	letter-spacing: 0.02em;
+	color: rgba(245, 236, 206, 0.98);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-status {
+	margin: 0;
+	font-size: clamp(0.88rem, 0.82rem + 0.2vw, 0.98rem);
+	line-height: 1.25;
+	opacity: 0.88;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-status.ss-turn-locked {
+	opacity: 1;
+	color: rgba(247, 230, 181, 0.98);
+	padding: 0.45rem 0.55rem;
+	border-radius: 8px;
+	border: 1px solid rgba(214, 181, 109, 0.48);
+	background: rgba(110, 82, 19, 0.1);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-status .ss-target-turn-name {
+	color: #ffd77d;
+	font-weight: 800;
+	text-shadow: 0 0 8px rgba(255, 215, 125, 0.18);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-list {
+	overflow-y: auto;
+	overflow-x: hidden;
+	max-height: min(65vh, 36rem);
+	display: grid;
+	gap: 0.45rem;
+	padding-right: 0.35rem;
+	scrollbar-gutter: stable;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(214, 181, 109, 0.62) rgba(255, 255, 255, 0.04);
+	position: relative;
+	align-content: start;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-list::-webkit-scrollbar {
+	width: 10px;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-list::-webkit-scrollbar-track {
+	background: rgba(255, 255, 255, 0.04);
+	border-radius: 999px;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-list::-webkit-scrollbar-thumb {
+	background: linear-gradient(180deg, rgba(214, 181, 109, 0.85), rgba(153, 123, 64, 0.85));
+	border-radius: 999px;
+	border: 2px solid rgba(10, 13, 21, 0.95);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-list::after {
+	content: "";
+	position: sticky;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	display: block;
+	height: 1.15rem;
+	margin-top: -1.15rem;
+	background: linear-gradient(180deg, rgba(10, 13, 21, 0), rgba(10, 13, 21, 0.98));
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity 120ms ease;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-list.ss-has-overflow:not(.ss-scroll-end)::after {
+	opacity: 1;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-row {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	align-items: center;
+	gap: 0.55rem;
+	padding: 0.45rem 0.5rem;
+	border-radius: 8px;
+	border: 1px solid rgba(214, 181, 109, 0.34);
+	background: rgba(255, 255, 255, 0.03);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-panel.ss-turn-locked .ss-target-pick {
+	opacity: 0.72;
+	cursor: not-allowed;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-panel.ss-turn-locked .ss-target-check:disabled {
+	cursor: not-allowed;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-pick {
+	display: grid;
+	grid-template-columns: auto auto 1fr;
+	align-items: center;
+	gap: 0.42rem;
+	min-width: 0;
+	cursor: pointer;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-check {
+	inline-size: 1.12rem;
+	block-size: 1.12rem;
+	margin: 0;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-avatar {
+	width: clamp(2.2rem, 1.85rem + 0.9vw, 2.8rem);
+	height: clamp(2.2rem, 1.85rem + 0.9vw, 2.8rem);
+	border-radius: 6px;
+	border: 1px solid rgba(214, 181, 109, 0.42);
+	background-color: rgba(0, 0, 0, 0.35);
+	background-position: center;
+	background-size: cover;
+	background-repeat: no-repeat;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-name {
+	font-size: clamp(0.95rem, 0.88rem + 0.2vw, 1.02rem);
+	font-weight: 700;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-ping,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-apply,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-close {
+	border-radius: 8px;
+	border: 1px solid rgba(214, 181, 109, 0.45);
+	background: rgba(24, 30, 43, 0.92);
+	color: var(--color-text-light-highlight, #f2ead3);
+	font-weight: 700;
+	font-size: clamp(0.88rem, 0.82rem + 0.16vw, 0.96rem);
+	min-height: 2.2rem;
+	padding: 0.38rem 0.7rem;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-actions {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 0.45rem;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-apply.ss-turn-locked:disabled {
+	opacity: 1;
+	border-color: rgba(214, 181, 109, 0.55);
+	background: repeating-linear-gradient(
+		-45deg,
+		rgba(78, 60, 22, 0.78),
+		rgba(78, 60, 22, 0.78) 8px,
+		rgba(58, 45, 17, 0.78) 8px,
+		rgba(58, 45, 17, 0.78) 16px
+	);
+	color: rgba(243, 228, 188, 0.9);
+	cursor: not-allowed;
+}
+
+@media (max-width: 900px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-panel {
+		width: 100%;
+		max-height: 88vh;
+		padding: 0.7rem;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-name {
+		font-size: 0.92rem;
+	}
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) a[data-tab="effects"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet) a[data-tab="biography"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet) a[data-tab="specialTraits"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet) section.tab[data-tab="effects"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet) section.tab[data-tab="biography"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet) section.tab[data-tab="specialTraits"] {
+	display: none !important;
+}
+
+@media (max-width: 900px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .window-content {
+		padding: var(--ss-space-1) !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right .control::after {
+		font-size: 0.88rem;
+	}
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores { position: sticky; }
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .rows{ margin-top: 0;}
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.sheet-sidekick-sheet.small-display { padding-bottom: 0; }
+
+/* Sheet Sidekick header tightening + horizontal top stats strip */
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character {
+	--ss-header-tight: clamp(82px, 13vh, 112px);
+	--dnd5e-sheet-header-height: var(--ss-header-tight);
+	--dnd5e-sheet-header-right-width: clamp(190px, 28vw, 240px);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.window-content header.sheet-header {
+	margin-bottom: var(--ss-space-1, 0.35rem) !important;
+	padding: var(--ss-space-1, 0.35rem) var(--ss-space-2, 0.7rem) !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header > .left {
+	padding: 0 0.75rem 0 1rem !important;
+	gap: 0.1rem !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header > .right {
+	padding-right: 1rem !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header > .right > div:last-child {
+	margin-top: 0 !important;
+	min-height: 0 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header > .right > div:last-child .sheet-header-buttons {
+	position: static !important;
+	justify-content: flex-end;
+}
+
+/* Remove XP bar in the header */
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header > .right > div:last-child .xp-label,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header > .right > div:last-child .xp-bar {
+	display: none !important;
+}
+
+/* Hide inspiration and level badge in sheet header */
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header > .right .inspiration,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header > .right .level-badge {
+	display: none !important;
+}
+
+/* Undo older large mobile offsets */
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character div.sheet-body div.sidebar,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section[data-tab="details"] {
+	margin-top: 0 !important;
+}
+
+/* Move sidebar card to top area and lay it out horizontally */
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content {
+	display: flex !important;
+	flex-direction: column !important;
+	gap: var(--ss-space-1, 0.35rem);
+	padding: var(--ss-space-1, 0.35rem) !important;
+	padding-inline-end: var(--ss-space-1, 0.35rem) !important;
+	overflow: hidden auto !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .tab-body {
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar {
+	display: block !important;
+	flex: 0 0 auto;
+	margin: 0 !important;
+	gap: 0 !important;
+	position: fixed;
+	z-index: 10 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar > .favorites {
+	display: none !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card {
+	display: grid !important;
+	grid-template-columns: clamp(66px, 16vw, 96px) minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 0.5rem 0.75rem;
+	padding: 0.45rem 0.55rem 0.5rem;
+	overflow: hidden;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card .sidebar-collapser {
+	display: none !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .portrait {
+	max-width: clamp(66px, 16vw, 96px);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .portrait > img,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .portrait > video {
+	min-height: 0 !important;
+	max-height: clamp(66px, 16vw, 96px) !important;
+	height: clamp(66px, 16vw, 96px);
+	border-radius: 4px !important;
+	border-bottom-width: 1px !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .portrait::after {
+	inset: 4px;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .stats {
+	display: flex !important;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4rem 0.65rem;
+	padding-bottom: 0 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .stats > .top {
+	flex: 0 0 auto;
+	margin-right: 0.15rem;
+	padding-top: 1.5em;
+	width: 100%;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .stats > .lozenges {
+	flex: 0 0 auto;
+	padding: 0 !important;
+	margin-top: 0 !important;
+	column-gap: 2rem;
+	width: 100%;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .stats > .lozenges .lozenge:nth-child(2) {
+	margin-top: 0 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .stats > .meter-group {
+	flex: 1 1 clamp(170px, 30vw, 320px);
+	min-width: 170px;
+	padding: 0 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .stats > .meter-group + .meter-group {
+	margin-top: 0 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card .death-tray {
+	grid-column: 1 / -1;
+	position: static !important;
+	top: auto !important;
+	transform: none !important;
+	width: auto !important;
+	padding: 0 !important;
+	margin-left: auto;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card .death-tray .death-tab {
+	display: none !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card .death-tray .death-saves {
+	padding: 8px 7px 6px !important;
+	border-radius: 6px !important;
+}
+
+/* Prevent collapsed-sidebar class from hiding the top strip */
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.sidebar-collapsed .main-content {
+	grid-template-columns: 1fr !important;
+	padding-left: var(--ss-space-1, 0.35rem) !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.sidebar-collapsed .main-content > .sidebar {
+	margin-left: 0 !important;
+}
+
+@media (max-width: 900px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card {
+		grid-template-columns: 72px minmax(0, 1fr);
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card .death-tray {
+		grid-column: 1 / -1;
+		margin-left: 0;
+		justify-self: end;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .stats > .meter-group {
+		flex-basis: 100%;
+	}
+}
+
+/* Collapsible top sidebar strip toggle */
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ss-sidebar-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.2rem;
+	height: 1.35rem;
+	margin: 0.1rem auto 0.35rem;
+	border-radius: 999px;
+	border: 1px solid var(--color-border-light-2, #666);
+	background: rgba(20, 24, 31, 0.88);
+	color: var(--dnd5e-color-gold, #d6b56d);
+	font-size: 0.92rem;
+	line-height: 1;
+	cursor: pointer;
+	box-shadow: 0 0 6px rgba(0, 0, 0, 0.35);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ss-sidebar-toggle:hover {
+	filter: brightness(1.12);
+}
+
+/* Pull-down behavior: hidden by default, expands vertically */
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character:not(.ss-sidebar-expanded) .sheet-body .main-content > .sidebar {
+	max-height: 0 !important;
+	opacity: 0;
+	overflow: hidden;
+	pointer-events: none;
+	transform: translateY(-8px);
+	margin: 0 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.ss-sidebar-expanded .sheet-body .main-content > .sidebar {
+	max-height: 540px;
+	opacity: 1;
+	overflow: visible;
+	pointer-events: auto;
+	transform: translateY(0);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar {
+	transition: max-height 220ms ease, opacity 180ms ease, transform 220ms ease;
+	transform-origin: top center;
+}
+
+/* Better card packing + death tray placement */
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card {
+	grid-template-columns: clamp(66px, 16vw, 96px) minmax(0, 1fr) !important;
+	grid-template-rows: auto auto;
+	align-items: start;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .portrait {
+	grid-column: 1;
+	grid-row: 1 / span 2;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .stats {
+	grid-column: 2;
+	grid-row: 1;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card .death-tray {
+	grid-column: 2;
+	grid-row: 2;
+	justify-self: end;
+	align-self: center;
+	margin: 0;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card .death-tray .death-saves {
+	display: grid;
+	grid-template-columns: auto auto auto;
+	align-items: center;
+	gap: 0.35rem;
+	padding: 0.35rem 0.45rem !important;
+	min-height: 0;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card .death-tray .death-saves::after {
+	inset: 4px;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card .death-tray .death-saves .pips {
+	padding: 0 !important;
+	gap: 0.2rem;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card .death-tray .death-saves .death-save {
+	width: 28px;
+	height: 28px;
+}
+
+@media (max-width: 900px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ss-sidebar-toggle {
+		width: 2.5rem;
+		height: 1.5rem;
+		font-size: 1rem;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.ss-sidebar-expanded .sheet-body .main-content > .sidebar {
+		max-height: 640px;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card {
+		grid-template-columns: 72px minmax(0, 1fr) !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card .death-tray {
+		grid-column: 1 / -1;
+	}
+}
+
+/* ---------------------------------- */
+/* Sheet-Sidekick mobile nav hardening    */
+/* ---------------------------------- */
+@media (max-width: 900px) {
+	/* Use dynamic viewport on mobile Safari/Chrome so bottom controls are not under browser UI */
+	:is(form.sheet-sidekick-sheet, form.ss-sheet),
+	:is(.sheet-sidekick-container, .ss-container),
+	:is(.sheet-sidekick-sheet, .ss-sheet).small-display,
+	:is(.sheet-sidekick-container, .ss-container).small-display {
+		height: 100dvh !important;
+		max-height: 100dvh !important;
+	}
+
+	/* Bottom tabs: stable 2-column grid with safe-area offset */
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs {
+		position: fixed !important;
+		top: auto !important;
+		left: max(0.35rem, env(safe-area-inset-left, 0px)) !important;
+		right: max(0.35rem, env(safe-area-inset-right, 0px)) !important;
+		bottom: var(--ss-nav-bottom-offset) !important;
+		z-index: 65 !important;
+		display: grid !important;
+		grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+		gap: 0.32rem !important;
+		padding: 0.28rem !important;
+		background: rgba(9, 12, 18, 0.82);
+		border: 1px solid rgba(214, 181, 109, 0.45);
+		border-radius: 12px;
+		backdrop-filter: blur(5px);
+		-webkit-backdrop-filter: blur(5px);
+		overflow: visible !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-dpad-available {
+		/* Keep class-only state neutral; JS sets real value inline to avoid stale spacing */
+		--ss-bottom-nav-pad: calc(7.45rem + env(safe-area-inset-bottom, 0px));
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-dpad-available nav.tabs-right,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-dpad-available nav.tabs {
+		/* Keep class-only state neutral; JS sets real columns inline to avoid stale gaps */
+		grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+	}
+
+	/* Prevent content from being obscured by fixed bottom tabs */
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .window-content {
+		padding-bottom: var(--ss-bottom-nav-pad) !important;
+	}
+
+	/* When the sidebar overlay is expanded, don't reserve bottom-nav space in the sheet body. */
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-sidebar-expanded .window-content {
+		padding-bottom: 0 !important;
+	}
+}
+
+/* Navigation tab icon + label cleanup (all sizes) */
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right .control::after,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs .control::after {
+	content: none !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.ss-dpad-fs-toggle::after,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.ss-target-fs-toggle::after,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.ss-dpad-fs-toggle::after,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.ss-target-fs-toggle::after {
+	content: none !important;
+	display: none !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.item,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.item.control,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.item,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.item.control {
+	display: flex !important;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 0.18rem;
+	min-height: 3.05rem;
+	padding: 0.35rem 0.4rem !important;
+	line-height: 1.05;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.item > i,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.item > i {
+	margin: 0;
+	font-size: 1.1rem;
+	line-height: 1;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.item .ss-tab-label,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.item .ss-tab-label {
+	display: block;
+	max-width: 100%;
+	font-size: 0.72rem;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.ss-tab-gamepad,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.ss-tab-gamepad {
+	grid-column: 1 / -1;
+	min-height: 3.4rem;
+	touch-action: manipulation;
+	-webkit-tap-highlight-color: transparent;
+	pointer-events: auto !important;
+	position: relative;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.ss-tab-targets,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.ss-tab-targets {
+	touch-action: manipulation;
+	-webkit-tap-highlight-color: transparent;
+	pointer-events: auto !important;
+	position: relative;
+}
+
+@media (max-width: 900px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-dpad-available nav.tabs-right a.ss-tab-gamepad,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-dpad-available nav.tabs a.ss-tab-gamepad {
+		grid-column: auto;
+		min-height: 3.05rem;
+	}
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-target-available nav.tabs-right a.ss-tab-gamepad,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-target-available nav.tabs a.ss-tab-gamepad,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-target-available nav.tabs-right a.ss-tab-targets,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-target-available nav.tabs a.ss-tab-targets {
+	grid-column: auto;
+	min-height: 3.05rem;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.ss-tab-gamepad > *,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.ss-tab-gamepad > *,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.ss-tab-targets > *,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.ss-tab-targets > * {
+	pointer-events: none;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.ss-nav-tab.active:not(.ss-tab-gamepad),
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.ss-nav-tab.active:not(.ss-tab-gamepad) {
+	background: linear-gradient(180deg, rgba(245, 238, 215, 0.98), rgba(218, 196, 140, 0.95)) !important;
+	border-color: rgba(214, 181, 109, 0.98) !important;
+	color: #16120a !important;
+	box-shadow: 0 0 0 1px rgba(214, 181, 109, 0.42), 0 0 10px rgba(214, 181, 109, 0.32);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.ss-nav-tab.active:not(.ss-tab-gamepad) > i,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.ss-nav-tab.active:not(.ss-tab-gamepad) .ss-tab-label,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.ss-nav-tab.active:not(.ss-tab-gamepad) > i,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.ss-nav-tab.active:not(.ss-tab-gamepad) .ss-tab-label {
+	color: #16120a !important;
+}
+
+/* Tighter sheet header box and bigger header utility buttons */
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.window-content header.sheet-header {
+	padding: 0.18rem 0.48rem !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .document-name,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .document-name input {
+	line-height: 1.05;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons {
+	gap: 0.5rem !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons > button {
+	min-width: 2.25rem;
+	min-height: 2.05rem;
+	padding: 0.25rem 0.38rem;
+	border-radius: 8px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons > button.ss-header-logout-btn {
+	min-width: 2.3rem !important;
+	min-height: 2.6rem !important;
+	padding: 0.3rem 0.4rem !important;
+	margin-left: 0.42rem !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons > button.ss-header-logout-btn > i {
+	pointer-events: none;
+}
+
+/* Bigger/easier short-rest + long-rest taps on mobile sheet-sidekick players */
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons > button[data-action="shortRest"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons > button[data-action="longRest"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons > button[aria-label*="Short Rest"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons > button[aria-label*="Long Rest"] {
+	min-width: 2.9rem !important;
+	min-height: 2.6rem !important;
+	padding: 0.38rem 0.44rem !important;
+	font-size: 1.06rem !important;
+}
+
+/* Make expand/collapse triangle easier to hit */
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ss-sidebar-toggle {
+	width: 2.85rem;
+	height: 1.75rem;
+	font-size: 1.05rem;
+}
+
+/* Loading indicator on tablets too */
+@media (max-width: 1100px) {
+	:is(body.ss-sheet-loading, body.ss-sheet-loading)::after {
+		font-size: clamp(1.35rem, 3.5vw, 2rem);
+	}
+}
+
+/* Keep non-player tabs hidden even with nav display overrides */
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.item[data-tab="effects"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.item[data-tab="biography"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.item[data-tab="specialTraits"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.item[data-tab="effects"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.item[data-tab="biography"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.item[data-tab="specialTraits"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet) a.control[data-tab="effects"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet) a.control[data-tab="biography"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet) a.control[data-tab="specialTraits"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet) section.tab[data-tab="effects"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet) section.tab[data-tab="biography"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet) section.tab[data-tab="specialTraits"] {
+	display: none !important;
+}
+
+/* Hard guard: only keep the intended bottom tabs visible in sheet-sidekick nav */
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.item.control:not([data-tab="details"]):not([data-tab="inventory"]):not([data-tab="features"]):not([data-tab="spells"]):not(.ss-dpad-fs-toggle):not(.ss-target-fs-toggle),
+:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.item.control:not([data-tab="details"]):not([data-tab="inventory"]):not([data-tab="features"]):not([data-tab="spells"]):not(.ss-dpad-fs-toggle):not(.ss-target-fs-toggle) {
+	display: none !important;
+}
+
+/* Currency panel cleanup */
+:is(form.sheet-sidekick-sheet, form.ss-sheet) section.currency {
+	display: grid !important;
+	grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+	gap: 0.5rem !important;
+	align-items: end;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) section.currency label {
+	display: grid !important;
+	grid-template-columns: auto 1fr;
+	grid-template-rows: auto auto;
+	column-gap: 0.35rem;
+	row-gap: 0.16rem;
+	align-items: center;
+	min-width: 0;
+	padding: 0.28rem 0.32rem 0.38rem;
+	border: 1px solid rgba(214, 181, 109, 0.34);
+	border-radius: 8px;
+	background: rgba(12, 16, 22, 0.24);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) section.currency label i.currency {
+	position: static !important;
+	inset: auto !important;
+	font-size: 0.9rem;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) span.currency-label {
+	grid-column: 2;
+	grid-row: 1;
+	padding-left: 0 !important;
+	font-size: 0.7rem;
+	letter-spacing: 0.04em;
+	opacity: 0.88;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) section.currency input {
+	grid-column: 1 / -1;
+	grid-row: 2;
+	width: 100%;
+	max-width: none !important;
+	min-height: 2rem;
+	padding: 0.35rem 0.55rem !important;
+	text-align: right;
+	font-size: 1rem !important;
+}
+
+/* Spell slot header polish + stable centering */
+:is(form.sheet-sidekick-sheet, form.ss-sheet) section.spells-list .items-section.card {
+	position: relative;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) section.spells-list .ss-spell-slot-header {
+	position: relative !important;
+	padding-top: 2.15rem !important;
+	overflow: visible !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) section.spells-list .ss-spell-slot-label {
+	position: absolute;
+	left: 50%;
+	top: -.5rem;
+	transform: translateX(-50%);
+	font-size: 0.62rem;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: rgba(214, 181, 109, 0.9);
+	pointer-events: none;
+}
+
+@media (max-width: 603px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.spells-list .ss-spell-slot-label {
+		top: -1.5rem;
+	}
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) section.spells-list .ss-spell-slot-pips {
+	position: absolute !important;
+	left: 50% !important;
+	right: auto !important;
+	inset-inline-start: 50% !important;
+	inset-inline-end: auto !important;
+	top: 0.14rem !important;
+	transform: translateX(-50%) !important;
+	margin: 0 !important;
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	gap: 0.34rem;
+	padding: 0.26rem 0.8rem !important;
+	border: 1px solid rgba(214, 181, 109, 0.45);
+	border-radius: 999px;
+	background: rgba(10, 14, 20, 0.82);
+	zoom: 1 !important;
+	min-height: 1.9rem;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) section.spells-list .ss-spell-slot-pips > * {
+	transform: scale(1.26) !important;
+	transform-origin: center !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) section.spells-list .ss-spell-slot-pips i,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) section.spells-list .ss-spell-slot-pips .pip {
+	font-size: 1rem !important;
+}
+
+/* Legacy detailed-list toggle is retired; always keep list view UI */
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .chips-toggle-holder,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .chips-toggle {
+	display: none !important;
+}
+
+/* Sheet Sidekick players: make container popup readable and remove non-player controls */
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) form[id^="ContainerSheet-"].application.sheet.dnd5e2.item {
+	width: min(92vw, 90vw) !important;
+    max-width: 92vw !important;
+    min-width: 280px !important;
+    left: 4vw !important;
+    top: 5vh !important;
+    border: 3px solid var(--dnd5e-color-scrollbar);
+}
+
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) form[id^="ContainerSheet-"].application.sheet.dnd5e2.item .window-content {
+	padding: 0.55rem 0.6rem !important;
+}
+
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) form[id^="ContainerSheet-"].application.sheet.dnd5e2.item .window-header .mode-slider,
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) form[id^="ContainerSheet-"].application.sheet.dnd5e2.item .window-header .header-elements,
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) form[id^="ContainerSheet-"].application.sheet.dnd5e2.item .window-header [data-action="toggleControls"],
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) form[id^="ContainerSheet-"].application.sheet.dnd5e2.item .window-header [data-action="toggleState"],
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) form[id^="ContainerSheet-"].application.sheet.dnd5e2.item .window-header [data-action="copyUuid"],
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) form[id^="ContainerSheet-"].application.sheet.dnd5e2.item > menu.controls-dropdown {
+	display: none !important;
+}
+
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) form[id^="ContainerSheet-"].application.sheet.dnd5e2.item section.currency label {
+	padding: 0.32rem 0.36rem 0.42rem !important;
+}
+
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) form[id^="ContainerSheet-"].application.sheet.dnd5e2.item span.currency-label {
+	font-size: 0.72rem;
+	letter-spacing: 0.04em;
+}
+
+/* Disable player item context menu UI (sheet-sidekick players only) */
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) nav#context-menu,
+:is(body.ss-sheet-sidekick-player, body.ss-sidekick-player) :is(form.sheet-sidekick-sheet, form.ss-sheet) nav#context-menu {
+	display: none !important;
+	visibility: hidden !important;
+	pointer-events: none !important;
+}
+
+/* Larger/touch-friendly Use Item confirmation dialog with image support */
+.app.dialog.ss-use-confirm-dialog {
+	width: min(94vw, 620px) !important;
+	max-width: 620px !important;
+}
+
+.app.dialog .window-content .ss-use-confirm {
+	display: grid;
+	grid-template-rows: auto auto;
+	gap: 0.55rem;
+	font-size: 1.02rem;
+}
+
+.app.dialog .window-content .ss-use-confirm-header {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	gap: 0.62rem;
+	align-items: center;
+}
+
+.app.dialog .window-content .ss-use-confirm-title-row {
+	display: flex;
+	align-items: center;
+	gap: 0.46rem;
+	min-width: 0;
+}
+
+.app.dialog .window-content .ss-use-confirm-image {
+	width: 54px;
+	height: 54px;
+	padding: 2px;
+	border-radius: 8px;
+	object-fit: cover;
+	border: 1px solid rgba(50, 50, 50, 0.35);
+	background:
+		radial-gradient(circle at 50% 40%, rgba(72, 76, 84, 0.9) 0%, rgba(22, 24, 28, 0.92) 55%, rgba(6, 7, 9, 0.95) 100%),
+		linear-gradient(180deg, rgba(28, 30, 34, 0.92), rgba(10, 11, 13, 0.95));
+}
+
+.app.dialog .window-content .ss-use-confirm-title {
+	margin: 0;
+	line-height: 1.35;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.app.dialog .window-content .ss-use-confirm-info {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 1.9rem;
+	height: 1.9rem;
+	border: 1px solid rgba(169, 182, 201, 0.76);
+	border-radius: 6px;
+	background: linear-gradient(180deg, rgba(234, 238, 245, 0.98), rgba(195, 205, 220, 0.94));
+	color: #102338;
+	cursor: pointer;
+}
+
+.app.dialog .window-content .ss-use-confirm-info i {
+	font-size: 1rem;
+}
+
+.app.dialog .window-content .ss-use-confirm-level {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 0.55rem;
+	align-items: center;
+	margin-top: 0.1rem;
+}
+
+.app.dialog .window-content .ss-use-confirm-level span {
+	font-size: 0.92rem;
+	font-weight: 700;
+}
+
+.app.dialog .window-content .ss-use-confirm-level select {
+	min-height: 1.95rem;
+	padding: 0.2rem 0.35rem;
+}
+
+.app.dialog .window-content .ss-use-confirm-body ul {
+	margin: 0.35rem 0 0.1rem 1rem;
+}
+
+.app.dialog .window-content .ss-hint-section-title {
+	margin: 0.2rem 0 0.35rem;
+}
+
+.app.dialog .window-content .ss-hint-grid {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 0.35rem;
+}
+
+.app.dialog .window-content .ss-hint-card {
+	display: grid;
+	grid-template-columns: 60px minmax(0, 1fr);
+	gap: 0.55rem;
+	align-items: center;
+	padding: 0.38rem 0.5rem;
+	border: 1px solid rgba(30, 36, 46, 0.2);
+	border-radius: 7px;
+	background: rgba(20, 24, 31, 0.06);
+}
+
+.app.dialog .window-content .ss-hint-icon-wrap {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 40px;
+	height: 40px;
+	border-radius: 8px;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	background: rgba(12, 16, 22, 0.85);
+}
+
+.app.dialog .window-content .ss-hint-icon {
+	width: 40px;
+	height: 40px;
+	object-fit: contain;
+}
+
+.app.dialog .window-content .ss-hint-text {
+	display: grid;
+	gap: 0.04rem;
+}
+
+.app.dialog .window-content .ss-hint-label {
+	font-size: 0.75rem;
+	font-weight: 800;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	opacity: 0.8;
+}
+
+.app.dialog .window-content .ss-hint-value {
+	font-size: 1rem;
+	line-height: 1.2;
+}
+
+.app.dialog .window-content .ss-hint-attack .ss-hint-icon-wrap {
+	background: rgba(24, 28, 35, 0.92);
+}
+
+.app.dialog .window-content .ss-hint-save .ss-hint-icon-wrap {
+	background: rgba(30, 41, 68, 0.92);
+}
+
+.app.dialog .window-content .ss-hint-damage .ss-hint-icon-wrap {
+	background: rgba(88, 16, 16, 0.9);
+}
+
+.app.dialog .window-content .ss-hint-healing .ss-hint-icon-wrap {
+	background: rgba(16, 78, 37, 0.9);
+}
+
+.app.dialog .window-content .ss-hint-formula .ss-hint-icon-wrap {
+	background: rgba(64, 44, 18, 0.9);
+}
+
+.app.dialog .window-content .ss-hint-ammo .ss-hint-icon-wrap {
+	background: rgba(76, 32, 16, 0.9);
+}
+
+.app.dialog .window-content .ss-hint-resource .ss-hint-icon-wrap {
+	background: rgba(26, 59, 79, 0.9);
+}
+
+.app.dialog .window-content .ss-hint-component .ss-hint-icon-wrap {
+	background: rgba(54, 51, 30, 0.9);
+}
+
+.app.dialog .window-content .ss-component-grid .ss-hint-card {
+	background: rgba(20, 24, 31, 0.03);
+}
+
+.app.dialog .window-content .ss-use-confirm-inline {
+	margin: 0.1rem 0 0.15rem;
+	font-size: 0.92rem;
+}
+
+.app.dialog .window-content .ss-use-confirm-warning {
+	display: none;
+	margin: 0.1rem 0 0.2rem;
+	padding: 0.35rem 0.45rem;
+	border-radius: 6px;
+	border: 1px solid rgba(145, 22, 22, 0.35);
+	background: rgba(94, 20, 20, 0.08);
+	color: #8f1f1f;
+	font-size: 0.92rem;
+	font-weight: 600;
+}
+
+.app.dialog .window-content .ss-use-confirm-warning.ss-turn-locked {
+	border-color: rgba(214, 181, 109, 0.48);
+	background: rgba(110, 82, 19, 0.1);
+	color: #8a6512;
+}
+
+.app.dialog.ss-use-confirm-dialog .dialog-buttons button.ss-turn-locked:disabled,
+.app.window-app.dialog.ss-use-confirm-dialog section.window-content > .dialog-buttons button.ss-turn-locked:disabled,
+dialog.application.ss-use-confirm-dialog section.window-content > .dialog-buttons button.ss-turn-locked:disabled {
+	opacity: 1;
+	border-color: rgba(214, 181, 109, 0.55);
+	background: repeating-linear-gradient(
+		-45deg,
+		rgba(78, 60, 22, 0.78),
+		rgba(78, 60, 22, 0.78) 8px,
+		rgba(58, 45, 17, 0.78) 8px,
+		rgba(58, 45, 17, 0.78) 16px
+	);
+	color: rgba(243, 228, 188, 0.9);
+	cursor: not-allowed;
+}
+
+.ss-action-filter-bar {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+	margin: 0.3rem 0 0.45rem;
+	padding: 0.28rem 0.32rem;
+	border: 1px solid rgba(214, 181, 109, 0.34);
+	border-radius: 8px;
+	background: rgba(12, 16, 22, 0.28);
+}
+
+.ss-action-filter-label {
+	font-size: 0.72rem;
+	font-weight: 700;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	opacity: 0.86;
+	margin-right: 0.08rem;
+}
+
+.ss-action-filter-btn {
+	border: 1px solid rgba(214, 181, 109, 0.38);
+	border-radius: 6px;
+	padding: 0.16rem 0.42rem;
+	min-height: 1.55rem;
+	background: rgba(10, 13, 19, 0.55);
+	color: var(--color-text-primary);
+	font-size: 0.75rem;
+	font-weight: 700;
+	line-height: 1;
+}
+
+.ss-action-filter-btn.active {
+	background: linear-gradient(180deg, rgba(243, 234, 205, 0.98), rgba(218, 196, 140, 0.92));
+	color: #171208;
+	border-color: rgba(214, 181, 109, 0.95);
+}
+
+.ss-action-filter-btn.ss-action-filter-secondary {
+	border-color: rgba(102, 168, 219, 0.62);
+	background: rgba(16, 36, 54, 0.6);
+	color: #d5ebff;
+}
+
+.ss-action-filter-btn.ss-action-filter-secondary.active {
+	background: linear-gradient(180deg, rgba(217, 240, 255, 0.98), rgba(145, 202, 240, 0.95));
+	color: #0d1f30;
+	border-color: rgba(107, 176, 227, 0.96);
+}
+
+.ss-action-view-toggle {
+	margin-left: auto;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.32rem;
+	white-space: nowrap;
+}
+
+.ss-action-view-toggle > i {
+	font-size: 0.82rem;
+	line-height: 1;
+	pointer-events: none;
+}
+
+.ss-action-view-toggle.active {
+	border-color: rgba(214, 181, 109, 0.72);
+	box-shadow: inset 0 0 0 1px rgba(214, 181, 109, 0.15);
+}
+
+.ss-action-view-label {
+	pointer-events: none;
+}
+
+li.item.ss-action-filter-muted > .item-row {
+	display: none !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) section.tab.ss-items-grid-view .items-list .item-list {
+	display: grid !important;
+	grid-template-columns: repeat(auto-fill, minmax(5.15rem, 1fr));
+	gap: 0.42rem !important;
+	align-content: start;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] {
+	margin: 0 !important;
+	min-width: 0;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row {
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	min-height: unset !important;
+	padding: 0.3rem !important;
+	border-radius: 10px;
+	border: 1px solid rgba(214, 181, 109, 0.3);
+	background: rgba(255, 255, 255, 0.025);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item.ss-action-filter-muted {
+	display: none !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] .activity-row.item-row,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] .item-summary {
+	display: none !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row .item-name {
+	display: flex !important;
+	flex-direction: column !important;
+	align-items: center !important;
+	justify-content: center !important;
+	width: 100% !important;
+	min-width: 0 !important;
+	min-height: 5.9rem !important;
+	padding: 0 !important;
+	margin: 0 !important;
+	gap: 0.28rem !important;
+	cursor: pointer;
+	text-align: center;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row .item-name .tags,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row .item-name .name-stacked .subtitle,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row .item-detail,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row .item-controls,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row .ss-tooltip-btn {
+	display: none !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] .item-detail.item-controls.always-visible {
+	display: none !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] .item-detail.item-controls.always-visible.hidden-width,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .items-header .item-header.item-controls.always-visible.hidden-width {
+	display: none !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row .item-name .name-stacked {
+	display: block !important;
+	width: 100%;
+	min-width: 0;
+	margin: 0 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row .item-name .name-stacked .title,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row .item-name h4 {
+	display: block !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	font-size: clamp(0.66rem, 2.7vw, 0.76rem) !important;
+	line-height: 1.05 !important;
+	font-weight: 700 !important;
+	text-align: center !important;
+	white-space: nowrap !important;
+	overflow: hidden !important;
+	text-overflow: ellipsis !important;
+	max-width: 100% !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row .item-name .item-image,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row .item-name img {
+	width: clamp(3.4rem, 15vw, 4.05rem) !important;
+	height: clamp(3.4rem, 15vw, 4.05rem) !important;
+	min-width: clamp(3.4rem, 15vw, 4.05rem) !important;
+	min-height: clamp(3.4rem, 15vw, 4.05rem) !important;
+	border-radius: 10px !important;
+	background-size: cover !important;
+	background-position: center !important;
+	box-shadow: 0 0 0 1px rgba(214, 181, 109, 0.25), 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row .item-name:active .item-image,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row .item-name:active img {
+	transform: scale(0.98);
+	filter: brightness(1.06);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-action-filter-btn:focus-visible,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-tooltip-btn:focus-visible,
+.ss-use-confirm-info:focus-visible,
+.app.dialog .dialog-button:focus-visible {
+	outline: 1px solid rgba(214, 181, 109, 0.88);
+	outline-offset: 1px;
+	box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.34);
+}
+
+.app.ss-locked-tooltip-dialog,
+.app.window-app.dialog.ss-use-confirm-dialog,
+dialog.application.ss-use-confirm-dialog {
+	width: min(92vw, 980px) !important;
+	height: auto !important;
+	max-height: 82vh !important;
+	z-index: 2000 !important;
+	box-shadow:
+		0 0 0 200vmax rgba(8, 10, 14, 0.74),
+		0 20px 56px rgba(0, 0, 0, 0.52) !important;
+}
+
+.app.ss-locked-tooltip-dialog .window-content {
+	max-height: calc(82vh - 5rem);
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	position: relative;
+}
+
+.app.ss-locked-tooltip-dialog .window-content .dialog-content {
+	position: relative;
+	overflow: auto;
+	flex: 1 1 auto;
+	padding-bottom: 0.08rem;
+}
+
+.app.ss-locked-tooltip-dialog .window-content .dialog-buttons {
+	flex: 0 0 auto;
+	position: relative;
+	z-index: 2;
+	background: inherit;
+}
+
+.app.ss-locked-tooltip-dialog.ss-has-scroll-more .window-content .dialog-content::after {
+	content: "";
+	position: sticky;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	display: block;
+	height: 50px;
+	margin-top: -50px;
+	pointer-events: none;
+	background: linear-gradient(
+		180deg,
+		rgba(235, 233, 226, 0) 0%,
+		rgba(235, 233, 226, 0.8) 70%,
+		rgba(235, 233, 226, 0.98) 100%
+	);
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body {
+	padding: 0.1rem 0.2rem 0.25rem;
+	display: grid;
+	gap: 0.48rem;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .header .top img,
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .top > img {
+	width: 74px;
+	height: 74px;
+	object-fit: contain;
+	padding: 2px;
+	border-radius: 10px;
+	border: 1px solid rgba(28, 30, 35, 0.65);
+	background:
+		radial-gradient(circle at 50% 42%, rgba(80, 84, 92, 0.92) 0%, rgba(24, 26, 31, 0.94) 58%, rgba(6, 7, 9, 0.96) 100%),
+		linear-gradient(180deg, rgba(34, 36, 42, 0.92), rgba(8, 10, 12, 0.95));
+	box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .header .top {
+	display: grid;
+	grid-template-columns: 74px minmax(0, 1fr);
+	gap: 0.58rem;
+	align-items: center;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .header .name-stacked {
+	display: grid;
+	gap: 0.12rem;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .header .name-stacked .title {
+	font-size: 1.22rem;
+	font-weight: 800;
+	line-height: 1.12;
+	letter-spacing: 0.01em;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .header .name-stacked .subtitle {
+	font-size: 0.78rem;
+	opacity: 0.74;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .header .school {
+	display: flex;
+	justify-content: flex-end;
+	margin-bottom: 0.1rem;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .header .school dnd5e-icon {
+	width: 1.1rem;
+	height: 1.1rem;
+	opacity: 0.9;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .header .bottom {
+	display: flex;
+	gap: 0.44rem;
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .header .bottom .charges:empty {
+	display: none !important;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .header .bottom .price.ss-empty,
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .header .bottom .weight.ss-empty,
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .header .bottom .charges.ss-empty {
+	display: none !important;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .header .bottom .price,
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .header .bottom .weight,
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .header .bottom .charges {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.22rem;
+	min-height: 1.46rem;
+	padding: 0.08rem 0.34rem;
+	border: 1px solid rgba(214, 181, 109, 0.34);
+	border-radius: 999px;
+	background: rgba(10, 14, 20, 0.06);
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .header .bottom .price::before {
+	content: "Price";
+	font-size: 0.66rem;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	opacity: 0.72;
+	margin-right: 0.15rem;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .header .bottom .weight::before {
+	content: "Weight";
+	font-size: 0.66rem;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	opacity: 0.72;
+	margin-right: 0.15rem;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .header .bottom i.currency,
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .header .bottom .fa-weight-hanging {
+	opacity: 0.95;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .description {
+	font-size: 1.02rem;
+	line-height: 1.4;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .description:empty {
+	display: none;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .control-hint.lock-hint {
+	display: none !important;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .rd__h,
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .rd__h--3,
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .entry-title-inner {
+	color: #4b3418 !important;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .spell-block {
+	margin: 0.08rem 0.36rem 0.12rem;
+	padding: 0.48rem 0.62rem;
+	border: 1px solid rgba(136, 105, 66, 0.42);
+	border-radius: 8px;
+	background: linear-gradient(180deg, rgba(151, 122, 88, 0.12), rgba(118, 92, 62, 0.09));
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .spell-block > li {
+	display: grid;
+	grid-template-columns: 44% 1fr;
+	gap: 0.3rem;
+	align-items: baseline;
+	padding: 0.14rem 0;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .spell-block > li strong {
+	color: #5b4320;
+	font-weight: 800;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .spell-block > li .value {
+	color: #1f1b14;
+}
+
+/* Spell pills duplicate spell-block content; hide for cleaner dialog. */
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .spell-block ~ .pills {
+	display: none !important;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body ul.pills {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.36rem;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body ul.pills > li.pill {
+	list-style: none;
+	margin: 0;
+	padding: 0.16rem 0.46rem;
+	border: 1px solid rgba(214, 181, 109, 0.38);
+	border-radius: 999px;
+	background: rgba(15, 20, 28, 0.08);
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body ul.pills > li.pill .label {
+	font-size: 0.76rem;
+	font-weight: 700;
+	letter-spacing: 0.03em;
+}
+
+/* Players cannot increment/decrement quantity from sheet-sidekick inventory rows. */
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-detail.item-quantity .adjustment-button {
+	display: none !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-detail.item-quantity input[data-name="system.quantity"] {
+	pointer-events: none !important;
+	max-width: 3.2rem;
+	text-align: center;
+}
+
+/* Consumables: use inline "qty." marker instead of a drifting header label. */
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-header.item-quantity {
+	display: none !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-detail.item-quantity::before {
+	content: "qty.";
+	display: inline-block;
+	font-size: 0.74rem;
+	font-weight: 700;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	opacity: 0.78;
+	margin-right: 0.22rem;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-action[data-action="prepare"].ss-prepare-pending {
+	outline: 1px solid rgba(214, 181, 109, 0.85);
+	box-shadow: 0 0 8px rgba(214, 181, 109, 0.45);
+	filter: brightness(1.12);
+}
+
+/* Ability score polish */
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores {
+	pointer-events: auto;
+	margin: 0 !important;
+	padding: 0.18rem 0.25rem !important;
+	border-top: 1px solid rgba(214, 181, 109, 0.42);
+	border-radius: 10px 10px 0 0;
+	background: rgba(9, 12, 18, 0.86);
+	backdrop-filter: blur(4px);
+	-webkit-backdrop-filter: blur(4px);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .rows {
+	width: 100% !important;
+	max-width: none !important;
+	margin: 0 auto !important;
+	display: grid !important;
+	grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+	gap: 0.22rem !important;
+	align-items: stretch;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .rows > div {
+	width: 100%;
+	display: contents !important;
+	justify-content: initial;
+	gap: 0 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .top {
+	padding-right: 0 !important;
+	min-height: 0 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score {
+	width: auto;
+	min-width: 0;
+	height: 54px;
+	padding-top: 6px;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score .label {
+	font-size: 0.58rem;
+	letter-spacing: 0.04em;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score .mod {
+	font-size: 0.95rem;
+	font-weight: 700;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score .score {
+	width: 44px;
+	height: 2rem;
+	border: 1px solid rgba(214, 181, 109, 0.64);
+	background: rgba(0, 0, 0, 0.78);
+	box-shadow: inset 0 0 6px rgba(214, 181, 109, 0.24);
+	font-size: 0.88rem;
+}
+
+@media (max-width: 900px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores {
+		position: sticky !important;
+		top: auto !important;
+		bottom: var(--ss-ability-scores-bottom, calc(var(--ss-bottom-nav-pad)));
+		left: 0 !important;
+		right: 0 !important;
+		z-index: 30;
+		max-height: 84px;
+		overflow: clip;
+	}
+}
+
+/* Use actor portrait as the upper sheet background image */
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character:not(.minimized) .window-content::before {
+	content: "" !important;
+	background-image: var(--ss-actor-portrait-url, none) !important;
+	background-size: cover !important;
+	background-position: center top !important;
+	background-repeat: no-repeat !important;
+	height: 60vh !important;
+	max-height: 60vh !important;
+	opacity: 0.26 !important;
+	pointer-events: none;
+}
+
+/* Mobile inventory: move container icons into a dedicated horizontal row */
+@media (max-width: 603px) {
+	/* Reduce cramped row columns on phones; rely on popup/use dialog for full formulas. */
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-header[data-column-id="time"],
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-detail[data-column-id="time"],
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-header[data-column-id="range"],
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-detail[data-column-id="range"],
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-header[data-column-id="target"],
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-detail[data-column-id="target"],
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-header[data-column-id="roll"],
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-detail[data-column-id="roll"],
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-header[data-column-id="formula"],
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-detail[data-column-id="formula"] {
+		display: none !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="inventory"] > .top {
+		display: grid !important;
+		grid-template-columns: minmax(0, 1fr) !important;
+		grid-template-rows: auto auto !important;
+		align-items: start !important;
+		gap: 0.5rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="inventory"] > .top > .encumbrance {
+		width: 100% !important;
+		max-width: none !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character ul.containers.unlist {
+		display: flex !important;
+		flex-direction: row !important;
+		flex-wrap: nowrap !important;
+		grid-column: 1 / -1 !important;
+		grid-row: 2 !important;
+		width: 100% !important;
+		gap: 0.45rem !important;
+		margin: 0 0 0.6rem !important;
+		padding: 0.05rem 0.05rem 0.2rem !important;
+		overflow-x: auto;
+		overflow-y: hidden;
+		-webkit-overflow-scrolling: touch;
+		scrollbar-width: thin;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character ul.containers.unlist > li.container {
+		flex: 0 0 50px;
+		min-width: 50px;
+		width: 50px;
+		height: 50px;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character ul.containers.unlist > li.container > a.item-action {
+		display: block;
+		position: relative;
+		width: 50px;
+		height: 50px;
+		border-radius: 10px;
+		overflow: hidden;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character ul.containers.unlist > li.container > a.item-action > img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	/* Keep quantity value visible for consumables on mobile (ammo/potions). */
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-detail.item-quantity.hidden-width {
+		display: flex !important;
+		visibility: visible !important;
+		width: auto !important;
+		min-width: 44px;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-detail.item-quantity {
+		gap: 0.18rem;
+		align-items: center;
+		min-width: 48px;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-detail.item-quantity::before {
+		display: none;
+	}
+
+	/* Consumables: keep row compact (name + qty + controls). */
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-header.item-price.hidden-width,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-detail.item-price.hidden-width,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-header.item-weight.hidden-width,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-detail.item-weight.hidden-width,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-header.item-charges.hidden-width,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-header.item-controls.hidden-width,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-detail.item-uses.hidden-width {
+		display: none !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-detail.item-controls {
+		min-width: 2.2rem;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-list > li.item > .item-row,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-list > li.item .activity-row.item-row {
+		display: grid !important;
+		grid-template-columns: minmax(0, 1fr) auto auto !important;
+		column-gap: 0.26rem;
+		align-items: center;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-list > li.item > .item-row .item-name {
+		min-width: 0 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-list > li.item > .item-row .name-stacked .title {
+		line-height: 1.05;
+		overflow-wrap: anywhere;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-list > li.item > .item-row .item-detail.item-quantity {
+		justify-self: end;
+		min-width: 2.15rem;
+		margin-left: 0 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-list > li.item > .item-row .item-detail.item-quantity input {
+		width: 2.15rem !important;
+		min-width: 2.15rem !important;
+		padding-left: 0.1rem !important;
+		padding-right: 0.1rem !important;
+		text-align: center;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-list > li.item > .item-row .item-detail.item-controls {
+		justify-self: end;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section[data-group-type="consumable"] .item-detail.item-controls [data-action="equip"] {
+		display: none !important;
+	}
+
+	/* Keep uses visible on narrow phones too (features/spells/items). */
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.features-list .item-header.item-uses.hidden-width,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.features-list .item-detail.item-uses.hidden-width,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.spells-list .item-header.item-uses.hidden-width,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.spells-list .item-detail.item-uses.hidden-width {
+		display: flex !important;
+		visibility: visible !important;
+		width: auto !important;
+		min-width: 72px;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.features-list .item-detail.item-uses,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.spells-list .item-detail.item-uses {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.15rem;
+		min-width: 56px;
+		flex: 0 0 auto;
+	}
+
+	/* Small-screen currency layout: 3 columns as requested. */
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.currency {
+		grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+		gap: 0.32rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.currency label {
+		padding: 0.18rem 0.24rem 0.24rem !important;
+		border-radius: 7px;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) span.currency-label {
+		font-size: 0.62rem !important;
+		letter-spacing: 0.03em;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.currency input {
+		min-height: 1.62rem !important;
+		padding: 0.2rem 0.34rem !important;
+		font-size: 0.9rem !important;
+	}
+}
+
+@media (max-width: 420px) {
+	/* Compact action filter controls. */
+	.ss-action-filter-bar {
+		padding: 0.2rem 0.24rem;
+		gap: 0.24rem;
+	}
+
+	.ss-action-filter-label {
+		font-size: 0.66rem;
+	}
+
+	.ss-action-filter-btn {
+		font-size: 0.68rem;
+		min-height: 1.42rem;
+		padding: 0.12rem 0.32rem;
+	}
+
+	.ss-action-view-toggle .ss-action-view-label {
+		font-size: 0.66rem;
+	}
+
+	/* Keep 3-column currency grid but tighten spacing. */
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.currency {
+		grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+		gap: 0.26rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.currency label {
+		padding: 0.14rem 0.18rem 0.2rem !important;
+		border-radius: 7px;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) span.currency-label {
+		font-size: 0.56rem !important;
+		letter-spacing: 0.03em;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.currency input {
+		min-height: 1.5rem !important;
+		padding: 0.14rem 0.24rem !important;
+		font-size: 0.84rem !important;
+	}
+}
+
+/* Final consistency pass: unify row scale between Inventory / Features / Spells. */
+@media (max-width: 603px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.inventory-list .item-row,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.features-list .item-row,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.spells-list .item-row {
+		min-height: 3.35rem;
+		padding-block: 0.38rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.inventory-list .item-row .item-name,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.features-list .item-row .item-name,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.spells-list .item-row .item-name {
+		gap: 0.42rem;
+		min-width: 0;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.inventory-list .item-row .item-image,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.features-list .item-row .item-image,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.spells-list .item-row .item-image {
+		width: 30px !important;
+		height: 30px !important;
+		min-width: 30px !important;
+		min-height: 30px !important;
+		float: none !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.inventory-list .item-row .name-stacked .title,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.features-list .item-row .name-stacked .title,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.spells-list .item-row .name-stacked .title {
+		font-size: 1.01rem !important;
+		line-height: 1.02;
+		font-weight: 700;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.inventory-list .item-row .name-stacked .subtitle,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.features-list .item-row .name-stacked .subtitle,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.spells-list .item-row .name-stacked .subtitle {
+		font-size: 0.86rem !important;
+		line-height: 1.02;
+		opacity: 0.9;
+	}
+
+	/* Undo old spells-only padding that made rows feel mis-scaled vs other tabs. */
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.spells-list .item-name * {
+		padding-left: 0 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .item-detail.item-controls {
+		min-width: 2.05rem;
+	}
+
+	/* Normalize spells row behavior to match Inventory/Features (older rules used float/block). */
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.spells-list .item-name {
+		display: flex !important;
+		align-items: center;
+		gap: 0.42rem;
+		min-width: 0 !important;
+		text-wrap: normal !important;
+		word-wrap: normal !important;
+		overflow-wrap: normal !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.spells-list .item-name img,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.spells-list .item-name .item-image {
+		float: none !important;
+		margin: 0 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.spells-list .item-name .name-stacked {
+		min-width: 0;
+	}
+}
+
+/* Ability score strip: mobile compact + desktop centered and less stretched. */
+@media (max-width: 900px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores {
+		padding: 0.14rem 0.18rem !important;
+		border-radius: 9px 9px 0 0;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .rows {
+		gap: 0.16rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score {
+		height: 50px;
+		padding-top: 5px;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score .label {
+		font-size: 0.52rem;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score .mod {
+		font-size: 0.86rem;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score .score {
+		width: 38px;
+		height: 1.8rem;
+		font-size: 0.82rem;
+	}
+}
+
+@media (min-width: 901px) {
+	/* Keep desktop ability scores horizontal and centered. */
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores {
+		padding: 0.2rem 0.34rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .rows {
+		width: min(760px, 100%) !important;
+		margin: 0 auto !important;
+		display: grid !important;
+		grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+		gap: 0.34rem !important;
+		align-items: end;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .rows > div {
+		display: contents !important;
+		width: auto !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score {
+		width: auto;
+		height: 52px;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score .score {
+		width: 40px;
+	}
+}
+
+/* Readability + spacing pass */
+
+/* 1) Ability scores: reduce desktop spread, improve mobile readability */
+@media (min-width: 901px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .rows {
+		width: min(620px, 100%) !important;
+		gap: 0.22rem !important;
+	}
+}
+
+@media (max-width: 900px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores {
+		padding: 0.18rem 0.24rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .rows {
+		gap: 0.2rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score {
+		height: 54px;
+		padding-top: 6px;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score .label {
+		font-size: 0.56rem;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score .mod {
+		font-size: 0.92rem;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score .score {
+		width: 42px;
+		height: 1.9rem;
+		font-size: 0.86rem;
+	}
+}
+
+/* 2) Details tab (skills/tools/saves) text scale up on mobile */
+@media (max-width: 603px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] filigree-box.skills li,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] filigree-box.tools li,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] filigree-box.saves li {
+		min-height: 2rem;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] .skill-name,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] .tool-name,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] .saving-throw {
+		font-size: 1.02rem !important;
+		line-height: 1.1;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] .bonus,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] .passive,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] .ability {
+		font-size: 0.96rem !important;
+	}
+}
+
+/* Normalize spells row font behavior to match other tabs on mobile */
+@media (max-width: 603px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.spells-list .item-name * {
+		font-size: inherit !important;
+	}
+}
+
+/* 3) Locked tooltip description spacing */
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .description p {
+	margin: 0.52rem 0 0.7rem;
+	line-height: 1.58;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .description p:last-child {
+	margin-bottom: 0.32rem;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .description {
+	font-size: 1.03rem;
+	line-height: 1.62;
+	color: #2d261b;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .description a.content-link,
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .description a.entity-link,
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .description a.inline-roll {
+	display: inline;
+	padding: 0.02rem 0.22rem;
+	margin: 0 0.05rem;
+	border-radius: 4px;
+	border: 1px solid rgba(132, 103, 68, 0.38);
+	background: rgba(167, 141, 102, 0.16);
+	color: #3d2c15;
+	line-height: 1.45;
+	white-space: normal !important;
+	word-break: normal !important;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .description a.content-link i,
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .description a.entity-link i,
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .description a.inline-roll i {
+	margin-right: 0.15rem;
+}
+
+/* 4) Dialog button spacing (locked tooltip + Use Item confirm) */
+.app.ss-locked-tooltip-dialog .window-content .dialog-buttons {
+	margin-top: 0.46rem;
+	padding-top: 0.34rem;
+	border-top: 1px solid rgba(134, 104, 69, 0.22);
+}
+
+.app.dialog.ss-use-confirm-dialog .window-content .dialog-buttons {
+	margin-top: 0.5rem;
+	padding-top: 0.34rem;
+	border-top: 1px solid rgba(214, 181, 109, 0.24);
+}
+
+.app.window-app.dialog.ss-use-confirm-dialog section.window-content > .dialog-buttons,
+dialog.application.ss-use-confirm-dialog section.window-content > .dialog-buttons {
+	margin-top: 0.5rem !important;
+	padding-top: 0.36rem !important;
+	border-top: 1px solid rgba(214, 181, 109, 0.26) !important;
+}
+
+/* 5) Sidebar first-pass spacing polish (desktop) */
+@media (min-width: 901px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card {
+		grid-template-columns: clamp(86px, 10vw, 122px) minmax(0, 1fr) !important;
+		gap: 0.62rem 0.86rem;
+		padding: 0.58rem 0.74rem 0.64rem;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .portrait {
+		max-width: clamp(86px, 10vw, 122px);
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .portrait > img,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .portrait > video {
+		max-height: clamp(86px, 10vw, 122px) !important;
+		height: clamp(86px, 10vw, 122px);
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .stats > .top {
+		padding-top: 0.45rem;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .stats {
+		gap: 0.5rem 0.8rem;
+	}
+}
+
+/* 6) Strong ability-score layout override to avoid vertical stacking regressions */
+@media (min-width: 901px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .rows {
+		display: flex !important;
+		flex-wrap: nowrap !important;
+		justify-content: center !important;
+		align-items: flex-end !important;
+		width: min(560px, 100%) !important;
+		max-width: 560px !important;
+		gap: 0.22rem !important;
+		margin: 0 auto !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .rows > div {
+		display: flex !important;
+		flex: 0 0 auto !important;
+		width: auto !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score {
+		width: 62px !important;
+		height: 50px !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .label {
+		font-size: 0.56rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .mod {
+		font-size: 0.9rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .score {
+		width: 38px !important;
+		height: 1.82rem !important;
+		font-size: 0.84rem !important;
+	}
+}
+
+@media (max-width: 900px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .rows {
+		display: grid !important;
+		grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+		gap: 0.22rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .rows > div {
+		display: contents !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score {
+		height: 56px !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .label {
+		font-size: 0.58rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .mod {
+		font-size: 0.94rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .score {
+		width: 42px !important;
+		height: 1.9rem !important;
+		font-size: 0.88rem !important;
+	}
+}
+
+/* 7) Details tab legibility boost on phones */
+@media (max-width: 603px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.tab[data-tab="details"] filigree-box li .name,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.tab[data-tab="details"] filigree-box li a.name {
+		font-size: 1.04rem !important;
+		line-height: 1.08;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.tab[data-tab="details"] filigree-box li .bonus,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.tab[data-tab="details"] filigree-box li .passive,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) section.tab[data-tab="details"] filigree-box li .ability {
+		font-size: 0.98rem !important;
+	}
+}
+
+/* ---------- Final UI tuning overrides ---------- */
+
+/* A) Ability score readability: responsive sizing/spacing (layout remains horizontal). */
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .rows {
+	gap: clamp(0.18rem, 0.45vw, 0.38rem) !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score {
+	height: clamp(50px, 6.2vw, 60px) !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .label {
+	font-size: clamp(0.54rem, 1.05vw, 0.66rem) !important;
+	letter-spacing: 0.03em !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .mod {
+	font-size: clamp(0.9rem, 1.75vw, 1.1rem) !important;
+	line-height: 1.05;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .score {
+	width: clamp(40px, 4.2vw, 48px) !important;
+	height: clamp(1.82rem, 3.35vw, 2.05rem) !important;
+	font-size: clamp(0.86rem, 1.5vw, 1rem) !important;
+}
+
+@media (min-width: 901px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .rows {
+		width: min(640px, 100%) !important;
+		max-width: 640px !important;
+	}
+}
+
+@media (max-width: 900px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores {
+		padding: 0.22rem 0.26rem !important;
+		max-height: none !important;
+		overflow: visible !important;
+	}
+}
+
+/* Keep 521-603px in the compact 6-column layout; an older legacy block below 603px
+   was inflating this strip into a tall 3x2 layout and creating a large perceived gap. */
+@media (min-width: 521px) and (max-width: 603px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores {
+		padding: 0.2rem 0.24rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .rows {
+		grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+		gap: 0.2rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score {
+		height: 54px !important;
+		padding-top: 6px !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .label {
+		font-size: 0.56rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .mod {
+		font-size: 0.94rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .score {
+		width: 42px !important;
+		height: 1.9rem !important;
+		font-size: 0.88rem !important;
+	}
+}
+
+/* Extra-small phones: use 3x2 ability grid so text can be larger/readable. */
+@media (max-width: 520px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .rows {
+		grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+		gap: 0.3rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score {
+		height: 60px !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .label {
+		font-size: 0.64rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .mod {
+		font-size: 1.02rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .score {
+		width: 46px !important;
+		height: 2.02rem !important;
+		font-size: 0.96rem !important;
+	}
+}
+
+/* B) Tooltip pills: less heavy, all-caps, and subtle section colors. */
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body ul.pills {
+	gap: 0.32rem;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body ul.pills > li.pill {
+	padding: 0.18rem 0.5rem;
+	border-width: 1px;
+	box-shadow: none;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body ul.pills > li.pill .label {
+	font-size: 0.7rem;
+	font-weight: 560;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body ul.pills > li.pill:nth-child(5n + 1) {
+	border-color: rgba(172, 131, 80, 0.52);
+	background: rgba(161, 126, 82, 0.15);
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body ul.pills > li.pill:nth-child(5n + 2) {
+	border-color: rgba(123, 140, 86, 0.5);
+	background: rgba(125, 145, 90, 0.14);
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body ul.pills > li.pill:nth-child(5n + 3) {
+	border-color: rgba(151, 98, 73, 0.5);
+	background: rgba(158, 103, 77, 0.14);
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body ul.pills > li.pill:nth-child(5n + 4) {
+	border-color: rgba(124, 105, 83, 0.5);
+	background: rgba(130, 109, 87, 0.14);
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body ul.pills > li.pill:nth-child(5n + 5) {
+	border-color: rgba(108, 121, 101, 0.5);
+	background: rgba(113, 126, 106, 0.14);
+}
+
+/* Improve paragraph flow with inline links in locked tooltip descriptions. */
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .description {
+	line-height: 1.66;
+}
+
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .description a.content-link,
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .description a.entity-link,
+.app.ss-locked-tooltip-dialog .ss-locked-tooltip-body .description a.inline-roll {
+	vertical-align: baseline;
+	box-decoration-break: clone;
+	-webkit-box-decoration-break: clone;
+}
+
+/* C) Use Item modal: prevent right-cutoff and bottom clipping. */
+.app.window-app.dialog.ss-use-confirm-dialog,
+dialog.application.ss-use-confirm-dialog {
+	left: 50% !important;
+	right: auto !important;
+	transform: translateX(-50%) !important;
+	width: min(94vw, 620px) !important;
+	max-width: 620px !important;
+	max-height: calc(100dvh - 0.7rem) !important;
+	height: auto !important;
+}
+
+.app.window-app.dialog.ss-use-confirm-dialog section.window-content,
+dialog.application.ss-use-confirm-dialog section.window-content {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+	overflow: hidden !important;
+	max-height: calc(100dvh - 4.8rem) !important;
+	padding-bottom: 0.3rem !important;
+}
+
+.app.window-app.dialog.ss-use-confirm-dialog section.window-content > .dialog-content,
+dialog.application.ss-use-confirm-dialog section.window-content > .dialog-content {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto !important;
+	padding-bottom: 0.18rem;
+}
+
+.app.window-app.dialog.ss-use-confirm-dialog section.window-content > .dialog-buttons,
+dialog.application.ss-use-confirm-dialog section.window-content > .dialog-buttons {
+	flex: 0 0 auto;
+	position: static !important;
+	background: inherit;
+	padding: 0.22rem 0 0.3rem;
+	margin-top: 0.24rem !important;
+}
+
+/* D) Low-detail inventory groups on phones: keep controls aligned on one row. */
+@media (max-width: 603px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section:is([data-group-type="consumable"], [data-group-type="tool"], [data-group-type="loot"]) .item-list > li.item > .item-row {
+		grid-template-columns: minmax(0, 1fr) max-content max-content !important;
+		align-items: center !important;
+		min-height: 4rem !important;
+		max-height: 4rem !important;
+		overflow: hidden;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section:is([data-group-type="consumable"], [data-group-type="tool"], [data-group-type="loot"]) .item-list > li.item > .item-row .item-name {
+		min-height: 0 !important;
+		align-items: center !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section:is([data-group-type="consumable"], [data-group-type="tool"], [data-group-type="loot"]) .item-list > li.item > .item-row .item-name .name-stacked {
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		overflow: hidden;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section:is([data-group-type="consumable"], [data-group-type="tool"], [data-group-type="loot"]) .item-list > li.item > .item-row .item-name .name-stacked .title,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section:is([data-group-type="consumable"], [data-group-type="tool"], [data-group-type="loot"]) .item-list > li.item > .item-row .item-name .name-stacked .subtitle {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section:is([data-group-type="consumable"], [data-group-type="tool"], [data-group-type="loot"]) .item-list > li.item > .item-row .item-name .tags {
+		display: none !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section:is([data-group-type="consumable"], [data-group-type="tool"], [data-group-type="loot"]) .item-list > li.item > .item-row .item-detail.item-quantity {
+		justify-self: end;
+		min-width: 2.15rem;
+		margin-left: 0 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section:is([data-group-type="consumable"], [data-group-type="tool"], [data-group-type="loot"]) .item-list > li.item > .item-row .item-detail.item-controls {
+		display: flex !important;
+		flex-wrap: nowrap !important;
+		align-items: center !important;
+		justify-content: flex-end !important;
+		gap: 0.18rem !important;
+		min-width: max-content !important;
+		width: max-content !important;
+		white-space: nowrap !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section:is([data-group-type="consumable"], [data-group-type="tool"], [data-group-type="loot"]) .item-list > li.item > .item-row .item-detail.item-controls .item-control,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section:is([data-group-type="consumable"], [data-group-type="tool"], [data-group-type="loot"]) .item-list > li.item > .item-row .item-detail.item-controls .ss-tooltip-btn {
+		flex: 0 0 auto !important;
+		margin: 0 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section:is([data-group-type="consumable"], [data-group-type="tool"], [data-group-type="loot"]) .item-list > li.item > .item-row .item-detail.item-controls .ss-tooltip-btn {
+		margin-left: 0 !important;
+		margin-top: 0 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section:is([data-group-type="tool"], [data-group-type="loot"]) .item-list > li.item > .item-row .item-detail.item-uses.empty {
+		display: none !important;
+	}
+}
+
+/* E) Final mobile polish: inventory control alignment, larger ability scores, compact sidebar. */
+@media (max-width: 900px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar {
+		position: relative !important;
+		inset: auto !important;
+		width: 95vw !important;
+		max-width: none !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.ss-sidebar-expanded .sheet-body .main-content > .sidebar {
+		max-height: min(72vh, 760px) !important;
+		overflow: auto !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card {
+		grid-template-columns: clamp(74px, 24vw, 98px) minmax(0, 1fr) !important;
+		grid-template-rows: auto auto !important;
+		gap: 0.4rem 0.52rem !important;
+		padding: 0.42rem 0.5rem 0.46rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .portrait {
+		grid-column: 1;
+		grid-row: 1 / span 2;
+		max-width: clamp(74px, 24vw, 98px) !important;
+		align-self: start;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .portrait > img,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .portrait > video {
+		width: 100% !important;
+		height: clamp(74px, 24vw, 98px) !important;
+		max-height: clamp(74px, 24vw, 98px) !important;
+		object-fit: cover !important;
+		aspect-ratio: 1 / 1;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .stats {
+		grid-column: 2;
+		grid-row: 1;
+		gap: 0.34rem 0.46rem !important;
+		align-items: start !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .stats > .top {
+		padding-top: 0 !important;
+		margin: 0 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .stats > .meter-group {
+		flex: 1 1 100% !important;
+		min-width: 0 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card .death-tray {
+		grid-column: 2;
+		grid-row: 2;
+		margin: 0 !important;
+		justify-self: end !important;
+	}
+}
+
+@media (max-width: 603px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section .item-list > li.item > .item-row {
+		align-items: center !important;
+		min-height: 4rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section .item-list > li.item > .item-row .item-name {
+		min-height: 0 !important;
+		min-width: 0 !important;
+		align-items: center !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section .item-list > li.item > .item-row .item-name .name-stacked {
+		min-width: 0;
+		overflow: hidden;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section .item-list > li.item > .item-row .item-name .name-stacked .title,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section .item-list > li.item > .item-row .item-name .name-stacked .subtitle {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section .item-list > li.item > .item-row .item-detail.item-controls {
+		display: flex !important;
+		flex-wrap: nowrap !important;
+		align-items: center !important;
+		justify-content: flex-end !important;
+		gap: 0.16rem !important;
+		min-width: max-content !important;
+		width: max-content !important;
+		white-space: nowrap !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section .item-list > li.item > .item-row .item-detail.item-controls .item-control,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section .item-list > li.item > .item-row .item-detail.item-controls .ss-tooltip-btn {
+		flex: 0 0 auto !important;
+		margin: 0 !important;
+		align-self: center !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section .item-list > li.item > .item-row .item-detail.item-controls .ss-tooltip-btn {
+		margin-left: 0 !important;
+		margin-top: 0 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.items-list.inventory-list .items-section .item-list > li.item > .item-row .item-detail.item-quantity {
+		justify-self: end;
+		min-width: 2.1rem;
+		margin-left: 0 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .rows {
+		display: grid !important;
+		grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+		gap: 0.34rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .rows > div {
+		display: contents !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score {
+		height: 66px !important;
+		padding-top: 6px !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .label {
+		font-size: 0.7rem !important;
+		letter-spacing: 0.04em !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .mod {
+		font-size: 1.1rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .score {
+		width: 48px !important;
+		height: 2.12rem !important;
+		font-size: 1rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card {
+		grid-template-columns: 1fr !important;
+		grid-template-rows: auto auto auto !important;
+		gap: 0.42rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .portrait {
+		grid-column: 1;
+		grid-row: 1;
+		max-width: 100% !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .portrait > img,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .portrait > video {
+		width: 100% !important;
+		height: clamp(146px, 40vw, 198px) !important;
+		max-height: none !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card > .stats {
+		grid-column: 1;
+		grid-row: 2;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar .card .death-tray {
+		grid-column: 1;
+		grid-row: 3;
+		justify-self: start !important;
+	}
+}
+
+@media (max-width: 400px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .rows {
+		gap: 0.38rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score {
+		height: 70px !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .label {
+		font-size: 0.76rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .mod {
+		font-size: 1.2rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) .ability-scores .ability-score .score {
+		width: 50px !important;
+		height: 2.2rem !important;
+		font-size: 1.06rem !important;
+	}
+}
+
+/* F) Sidebar-expanded focus mode + mobile sidebar redesign (portrait-first). */
+:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-sidebar-expanded section.window-content header.sheet-header,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-sidebar-expanded nav.tabs-right,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-sidebar-expanded nav.tabs,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-sidebar-expanded .sheet-body .main-content section.tab,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-sidebar-expanded .sheet-body .main-content > .tab-body section.tab,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-sidebar-expanded section.ability-scores,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-sidebar-expanded button.create-child {
+	filter: blur(4px) brightness(0.78) saturate(0.9);
+	transition: filter 130ms ease;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-sidebar-expanded .ss-sidebar-toggle,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-sidebar-expanded .sheet-body .main-content > .sidebar {
+	filter: none !important;
+}
+
+/* Prevent taps on blurred background controls while the sidebar overlay is expanded. */
+:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-sidebar-expanded nav.tabs-right,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-sidebar-expanded nav.tabs,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-sidebar-expanded section.ability-scores {
+	pointer-events: none !important;
+	z-index: 20 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).ss-sidebar-expanded .ss-sidebar-toggle {
+	box-shadow: 0 0 0 2px rgba(214, 181, 109, 0.38), 0 0 12px rgba(0, 0, 0, 0.45);
+	border-color: rgba(214, 181, 109, 0.72) !important;
+}
+
+@media (max-width: 900px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ss-sidebar-toggle {
+		display: flex !important;
+		visibility: visible !important;
+		pointer-events: auto !important;
+		margin: 0.08rem auto 0.4rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character:not(.ss-sidebar-expanded) .sheet-body .main-content > .sidebar,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.ss-sidebar-collapsed .sheet-body .main-content > .sidebar {
+		max-height: 0 !important;
+		opacity: 0 !important;
+		overflow: hidden !important;
+		pointer-events: none !important;
+		transform: translateY(-8px) !important;
+		margin: 0 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.ss-sidebar-expanded .sheet-body .main-content > .sidebar {
+		max-height: none !important;
+		opacity: 1 !important;
+		overflow: auto !important;
+		pointer-events: auto !important;
+		transform: translateY(0) !important;
+		position: fixed !important;
+		top: var(--ss-sidebar-overlay-top, calc(env(safe-area-inset-top, 0px) + 3.15rem)) !important;
+		left: max(var(--ss-space-1, 0.35rem), env(safe-area-inset-left, 0px)) !important;
+		right: max(var(--ss-space-1, 0.35rem), env(safe-area-inset-right, 0px)) !important;
+		bottom: var(--ss-sidebar-overlay-bottom, max(var(--ss-space-1, 0.35rem), env(safe-area-inset-bottom, 0px))) !important;
+		width: auto !important;
+		margin: 0 !important;
+		z-index: 140 !important;
+	}
+
+	/* Safety net: if native `sidebar-collapsed` briefly lingers, keep the custom expanded overlay active. */
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.ss-sidebar-expanded.sidebar-collapsed .sheet-body .main-content > .sidebar {
+		max-height: none !important;
+		opacity: 1 !important;
+		overflow: auto !important;
+		pointer-events: auto !important;
+		transform: translateY(0) !important;
+		position: fixed !important;
+		top: var(--ss-sidebar-overlay-top, calc(env(safe-area-inset-top, 0px) + 3.15rem)) !important;
+		left: max(var(--ss-space-1, 0.35rem), env(safe-area-inset-left, 0px)) !important;
+		right: max(var(--ss-space-1, 0.35rem), env(safe-area-inset-right, 0px)) !important;
+		bottom: var(--ss-sidebar-overlay-bottom, max(var(--ss-space-1, 0.35rem), env(safe-area-inset-bottom, 0px))) !important;
+		width: auto !important;
+		margin: 0 !important;
+		z-index: 140 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-body .main-content > .sidebar {
+		transition: max-height 220ms ease, opacity 180ms ease, transform 220ms ease !important;
+		transform-origin: top center;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character nav.tabs-right,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character nav.tabs {
+		z-index: 60 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ss-sidebar-toggle {
+		position: relative;
+		z-index: 145;
+	}
+
+	/* Simpler mobile focus mode: hide tabs + ability scores entirely while sidebar is expanded. */
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.ss-sidebar-expanded nav.tabs-right,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.ss-sidebar-expanded nav.tabs,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.ss-sidebar-expanded section.ability-scores {
+		display: none !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.ss-sidebar-expanded .sheet-body .main-content > .sidebar .card {
+		display: grid !important;
+		grid-template-columns: 1fr !important;
+		grid-template-rows: auto auto auto !important;
+		gap: 0.34rem !important;
+		padding: 0.42rem 0.44rem 0.5rem !important;
+		border-radius: 12px !important;
+		overflow: hidden !important;
+		background: rgba(10, 14, 20, 0.92) !important;
+		border: 1px solid rgba(214, 181, 109, 0.24) !important;
+		max-height: calc(100dvh - var(--ss-sidebar-overlay-top, 0px) - var(--ss-sidebar-overlay-bottom, 0px) - 0.75rem) !important;
+		overflow: auto !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.ss-sidebar-expanded .sheet-body .main-content > .sidebar .card > .portrait {
+		grid-column: 1;
+		grid-row: 1;
+		max-width: none !important;
+		width: 100% !important;
+		margin: 0 !important;
+		position: relative;
+		border-radius: 10px;
+		overflow: hidden;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.ss-sidebar-expanded .sheet-body .main-content > .sidebar .card > .portrait > img,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.ss-sidebar-expanded .sheet-body .main-content > .sidebar .card > .portrait > video {
+		display: block;
+		width: 100% !important;
+		height: clamp(188px, 46vw, 272px) !important;
+		max-height: none !important;
+		min-height: 0 !important;
+		object-fit: cover !important;
+		object-position: center 28%;
+		border-radius: 0 !important;
+		border: 0 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.ss-sidebar-expanded .sheet-body .main-content > .sidebar .card > .portrait::after {
+		content: none !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.ss-sidebar-expanded .sheet-body .main-content > .sidebar .card > .stats {
+		grid-column: 1;
+		grid-row: 2;
+		display: flex !important;
+		flex-wrap: wrap;
+		gap: 0.35rem 0.44rem !important;
+		margin: 0 !important;
+		padding: 0.45rem 0.5rem !important;
+		border-radius: 10px;
+		background: rgba(16, 20, 27, 0.84) !important;
+		border: 1px solid rgba(214, 181, 109, 0.18);
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.ss-sidebar-expanded .sheet-body .main-content > .sidebar .card > .stats > .top {
+		width: 100%;
+		margin: 0 !important;
+		padding-top: 0 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.ss-sidebar-expanded .sheet-body .main-content > .sidebar .card > .stats > .lozenges {
+		width: 100%;
+		padding: 0 !important;
+		margin: 0 !important;
+		column-gap: 0.62rem !important;
+		row-gap: 0.36rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.ss-sidebar-expanded .sheet-body .main-content > .sidebar .card > .stats > .meter-group {
+		flex: 1 1 100% !important;
+		min-width: 0 !important;
+		padding: 0 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character.ss-sidebar-expanded .sheet-body .main-content > .sidebar .card .death-tray {
+		grid-column: 1;
+		grid-row: 3;
+		margin: auto !important;
+		padding: 0 !important;
+		justify-self: center !important;
+		position: static !important;
+		transform: none !important;
+		width: auto !important;
+	}
+}
+
+/* Sheet body edge fade: top and bottom */
+.dnd5e2.sheet.actor .sheet-body {
+	-webkit-mask-image: linear-gradient(to bottom, transparent 0, black 8px, black calc(100% - 8px), transparent 100%);
+	mask-image: linear-gradient(to bottom, transparent 0, black 8px, black calc(100% - 8px), transparent 100%);
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+	-webkit-mask-size: 100% 100%;
+	mask-size: 100% 100%;
+}
+
+@media (max-width: 400px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .rows {
+		gap: 0.42rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score {
+		height: 80px !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score .label {
+		font-size: 0.9rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score .mod {
+		font-size: 1.5rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score .score {
+		width: 58px !important;
+		height: 2.5rem !important;
+		font-size: 1.26rem !important;
+	}
+}
+
+/* Player pause banner (sheet-sidekick and no-canvas players) */
+#ss-player-pause-banner[hidden] {
+	display: none !important;
+}
+
+#ss-player-pause-banner {
+	position: fixed;
+	inset: 0;
+	z-index: 1000001;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding:
+		max(0.75rem, env(safe-area-inset-top, 0px))
+		max(0.75rem, env(safe-area-inset-right, 0px))
+		max(0.75rem, env(safe-area-inset-bottom, 0px))
+		max(0.75rem, env(safe-area-inset-left, 0px));
+	pointer-events: auto;
+	touch-action: none;
+	background:
+		radial-gradient(circle at 50% 40%, rgba(120, 22, 22, 0.18), rgba(10, 10, 12, 0.74) 58%, rgba(6, 6, 8, 0.88) 100%);
+	backdrop-filter: blur(4px);
+	-webkit-backdrop-filter: blur(4px);
+	cursor: wait;
+}
+
+#ss-player-pause-banner .ss-player-pause-banner__inner {
+	min-width: min(92vw, 20rem);
+	max-width: min(95vw, 44rem);
+	border-radius: 14px;
+	border: 1px solid rgba(227, 91, 91, 0.68);
+	background:
+		repeating-linear-gradient(-45deg, rgba(125, 33, 33, 0.9), rgba(125, 33, 33, 0.9) 10px, rgba(96, 25, 25, 0.9) 10px, rgba(96, 25, 25, 0.9) 20px),
+		linear-gradient(180deg, rgba(32, 8, 8, 0.97), rgba(22, 6, 6, 0.97));
+	box-shadow: 0 18px 38px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(227, 91, 91, 0.18);
+	color: #fff1f1;
+	text-align: center;
+	padding: 0.85rem 1rem 0.95rem;
+	pointer-events: none;
+}
+
+#ss-player-pause-banner .ss-player-pause-banner__title {
+	font-weight: 900;
+	letter-spacing: 0.08em;
+	font-size: clamp(0.95rem, 0.9rem + 0.45vw, 1.2rem);
+	line-height: 1.05;
+}
+
+#ss-player-pause-banner .ss-player-pause-banner__sub {
+	margin-top: 0.14rem;
+	font-size: clamp(0.72rem, 0.7rem + 0.18vw, 0.84rem);
+	opacity: 0.92;
+}
+
+/* Stronger visual "locked" state for dpad arrows */
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-dpad-fs-overlay.ss-turn-locked .ss-dpad-dir-btn {
+	opacity: 1 !important;
+	border-color: rgba(214, 181, 109, 0.7) !important;
+	box-shadow: inset 0 0 0 1px rgba(214, 181, 109, 0.16), 0 5px 14px rgba(0, 0, 0, 0.18);
+	filter: saturate(0.88) contrast(0.95);
+	cursor: not-allowed !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-dpad-fs-overlay.ss-turn-locked .ss-dpad-dir-btn i {
+	color: rgba(246, 233, 191, 0.94) !important;
+	opacity: 0.95;
+	text-shadow: 0 0 8px rgba(214, 181, 109, 0.2);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-dpad-fs-overlay.ss-turn-locked .ss-dpad-dir-btn::after {
+	content: "🔒";
+    position: absolute;
+    right: 7px;
+    bottom: .8rem;
+    font-size: 1.5rem;
+    letter-spacing: 0.06em;
+    padding: 1.0rem;
+    border-radius: .5rem;
+    border: 1px solid rgba(255, 215, 125, 0.65);
+    background: rgba(44, 28, 8, 0.88);
+    line-height: 1;
+    color: rgba(255, 215, 125, 0.95);
+    text-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-dpad-fs-overlay .ss-dpad-dir-btn {
+	position: relative;
+}
+
+/* Mid-width mobile/tablet tweak: reduce excess gap between ability score strip and fixed bottom tabs. */
+@media (min-width: 480px) and (max-width: 760px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores {
+		bottom: var(--ss-ability-scores-bottom, calc(var(--ss-bottom-nav-pad) - 0.35rem)) !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs {
+		gap: 0.24rem !important;
+		padding: 0.22rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.item,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.item.control,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.item,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.item.control {
+		min-height: 2.8rem;
+		padding: 0.28rem 0.35rem !important;
+	}
+}
+
+/* Phones/small widths: aggressively tighten the fixed-bottom stack spacing. */
+@media (max-width: 630px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet):not(.ss-sidebar-expanded) .window-content {
+		padding-bottom: calc(var(--ss-bottom-nav-pad) - 0.9rem) !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores {
+		bottom: var(--ss-ability-scores-bottom, calc(var(--ss-bottom-nav-pad) - 0.85rem)) !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs {
+		gap: 0.18rem !important;
+		padding: 0.18rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.item,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.item.control,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.item,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.item.control {
+		min-height: 2.6rem;
+		padding: 0.22rem 0.28rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right a.item > i,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs a.item > i {
+		font-size: 1rem;
+	}
+}
+
+/* Readability pass: ability scores + details skills/saves/tools */
+@media (min-width: 401px) and (max-width: 602px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores {
+		padding: 0.24rem 0.28rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .rows {
+		gap: 0.26rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score {
+		height: 62px !important;
+		padding-top: 7px !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score .label {
+		font-size: 0.7rem !important;
+		letter-spacing: 0.04em !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score .mod {
+		font-size: 1.12rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score .score {
+		width: 49px !important;
+		height: 2.08rem !important;
+		font-size: 1rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] filigree-box.skills li,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] filigree-box.tools li,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] filigree-box.saves li {
+		min-height: 2.18rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] .skill-name,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] .tool-name,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] .saving-throw,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] filigree-box li .name {
+		font-size: 1.08rem !important;
+		line-height: 1.08 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] .bonus,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] .passive,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] .ability,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] filigree-box li .value {
+		font-size: 1rem !important;
+	}
+}
+
+@media (min-width: 603px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores {
+		padding: 0.26rem 0.32rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .rows {
+		gap: clamp(0.24rem, 0.45vw, 0.42rem) !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score {
+		height: clamp(58px, 5vw, 66px) !important;
+		padding-top: 7px !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score .label {
+		font-size: clamp(0.66rem, 0.58rem + 0.18vw, 0.82rem) !important;
+		letter-spacing: 0.04em !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score .mod {
+		font-size: clamp(1.06rem, 0.98rem + 0.22vw, 1.28rem) !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores .ability-score .score {
+		width: clamp(46px, 4.3vw, 54px) !important;
+		height: clamp(1.95rem, 3vw, 2.18rem) !important;
+		font-size: clamp(0.96rem, 0.9rem + 0.12vw, 1.12rem) !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] filigree-box.skills li,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] filigree-box.tools li,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] filigree-box.saves li {
+		min-height: 2.1rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] .skill-name,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] .tool-name,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] .saving-throw,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] filigree-box li .name {
+		font-size: clamp(1.03rem, 0.98rem + 0.16vw, 1.18rem) !important;
+		line-height: 1.08 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] .bonus,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] .passive,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] .ability,
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="details"] filigree-box li .value {
+		font-size: clamp(0.96rem, 0.92rem + 0.12vw, 1.08rem) !important;
+	}
+}
+
+/* Inventory encumbrance card: compact it on small widths so players see more content below. */
+@media (max-width: 700px) {
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="inventory"] > .top {
+		gap: 0.28rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="inventory"] > .top > .encumbrance.card {
+		padding: 0.28rem 0.4rem !important;
+		border-radius: 10px !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="inventory"] > .top > .encumbrance.card .meter {
+		height: 20px !important;
+		min-height: 20px !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="inventory"] > .top > .encumbrance.card .meter .label {
+		gap: 0.12rem !important;
+		font-size: 0.78rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="inventory"] > .top > .encumbrance.card .meter .label i {
+		font-size: 0.68rem !important;
+		margin-right: 0.08rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="inventory"] > .top > .encumbrance.card .info {
+		margin-top: 0.18rem !important;
+		display: grid !important;
+		grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+		gap: 0.12rem 0.35rem !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="inventory"] > .top > .encumbrance.card .info > div {
+		min-height: 0 !important;
+		padding: 0 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="inventory"] > .top > .encumbrance.card .info .label {
+		font-size: 0.6rem !important;
+		line-height: 1 !important;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab[data-tab="inventory"] > .top > .encumbrance.card .info .value {
+		font-size: 0.82rem !important;
+		line-height: 1.05 !important;
+	}
+}
+
+/* Grid mode hard overrides (placed late to beat inventory-group-specific rules) */
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item.ss-action-filter-muted {
+	display: none !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id]:not(.ss-action-filter-muted) {
+	display: block !important;
+	margin: 0 !important;
+	min-width: 0 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-description,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-description.collapsible-content {
+	display: none !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row {
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	height: 5.25rem !important;
+	min-height: 5.25rem !important;
+	max-height: 5.25rem !important;
+	padding: 0.22rem 0.24rem !important;
+	overflow: hidden !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row > .item-detail,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row > .item-controls,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row > .ss-tooltip-btn,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] .item-detail.item-controls.always-visible,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .items-header .item-header.item-controls.always-visible,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .items-header .item-header.item-controls.always-visible.hidden-width,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] .item-detail.item-controls.always-visible.hidden-width {
+	display: none !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row > .item-name {
+	display: flex !important;
+	flex-direction: column !important;
+	align-items: center !important;
+	justify-content: center !important;
+	width: 100% !important;
+	height: 100% !important;
+	min-height: 0 !important;
+	padding: 0 !important;
+	margin: 0 !important;
+	gap: 0.16rem !important;
+	text-align: center !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row > .item-name .item-image,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row > .item-name img {
+	width: clamp(3.05rem, 13.8vw, 3.95rem) !important;
+	height: clamp(3.05rem, 13.8vw, 3.95rem) !important;
+	min-width: clamp(3.05rem, 13.8vw, 3.95rem) !important;
+	min-height: clamp(3.05rem, 13.8vw, 3.95rem) !important;
+	margin: 0 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row > .item-name .name-stacked {
+	display: block !important;
+	width: 100% !important;
+	min-width: 0 !important;
+	margin: 0 !important;
+	padding: 0 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row > .item-name .name-stacked .title,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row > .item-name h4 {
+	display: block !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	font-size: 0.68rem !important;
+	line-height: 1 !important;
+	font-weight: 700 !important;
+	white-space: nowrap !important;
+	overflow: hidden !important;
+	text-overflow: ellipsis !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row > .item-name .name-stacked .subtitle,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character section.tab.ss-items-grid-view .items-list .item-list > li.item[data-item-id] > .item-row > .item-name .tags {
+	display: none !important;
+}
