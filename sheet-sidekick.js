@@ -26,10 +26,6 @@ function getSheetSidekickSetting(key, fallback = null) {
   return fallback;
 }
 
-function getSheetSidekickFormElements(root = document) {
-  return Array.from(root.querySelectorAll?.(SS_SHEET_FORM_SELECTOR) ?? []);
-}
-
 function shouldForceNoCanvasForSheetSidekickUser() {
   const sheetSidekick = getSheetSidekickModule();
   if (!sheetSidekick?.active) return false;
@@ -47,25 +43,6 @@ function shouldForceNoCanvasForSheetSidekickUser() {
 
 function isSheetSidekickPlayerFastPath() {
   if (!game.user || game.user.isGM) return false;
-  try {
-    return shouldForceNoCanvasForSheetSidekickUser();
-  } catch (_err) {
-    return false;
-  }
-}
-
-function isSheetSidekickClientUser() {
-  if (!game.user || game.user.isGM) return false;
-
-  const sheetSidekick = getSheetSidekickModule();
-  if (!sheetSidekick?.active) return false;
-
-  try {
-    if (sheetSidekick.api?.isSheetSidekick?.()) return true;
-  } catch (_err) {
-    // Fall through to local setting checks.
-  }
-
   try {
     return shouldForceNoCanvasForSheetSidekickUser();
   } catch (_err) {
@@ -901,6 +878,560 @@ function buildConsumesHintsHtml(consumes = []) {
   `;
 }
 
+function getSsItemActivities(item) {
+  const raw = item?.system?.activities;
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  if (Array.isArray(raw?.contents)) return raw.contents;
+  if (typeof raw === "object") return Object.values(raw);
+  return [];
+}
+
+function classifySsUseAssist(item, actor = null) {
+  const result = {
+    hasTargetAssist: false,
+    hasPlacementAssist: false,
+    selfOnly: false,
+    reasons: [],
+    placementReason: "",
+    targetReason: "",
+    targetLimit: 0,
+    rangeFeet: 0
+  };
+  if (!item) return result;
+
+  const activities = getSsItemActivities(item);
+  const activityObjects = activities.map((a) => a?.toObject?.() ?? a ?? {});
+  const rootSystem = item?.system?.toObject?.() ?? item?.system ?? {};
+  const sources = [...activities, item.system ?? {}];
+  let sawAnyRelevant = false;
+  let sawOnlySelf = true;
+
+  const addReason = (text) => {
+    const line = String(text ?? "").trim();
+    if (!line) return;
+    if (!result.reasons.includes(line)) result.reasons.push(line);
+  };
+
+  const hasMeaningfulTemplateData = (template) => {
+    if (!template) return false;
+    if (typeof template === "string") return !!template.trim();
+    if (Number.isFinite(Number(template))) return Number(template) > 0;
+    if (typeof template !== "object") return false;
+
+    const type = String(template.type ?? template.shape ?? "").trim().toLowerCase();
+    const numericKeys = ["size", "distance", "width", "radius", "length", "angle"];
+    const hasPositiveMetric = numericKeys.some((k) => {
+      const n = Number(template?.[k]);
+      return Number.isFinite(n) && n > 0;
+    });
+    const units = String(template.units ?? "").trim().toLowerCase();
+    const count = Number(template.count);
+    const hasCount = Number.isFinite(count) && count > 0;
+
+    if (hasPositiveMetric) return true;
+    if (type && !["", "none", "creature", "object", "self"].includes(type)) return true;
+    if (units && !["", "ft", "feet", "m", "meter", "meters"].includes(units) && hasPositiveMetric) return true;
+    if (hasCount && (type.includes("cone") || type.includes("line") || type.includes("circle") || type.includes("sphere") || type.includes("square") || type.includes("cube"))) return true;
+    return false;
+  };
+
+  const toPositiveInt = (value) => {
+    const n = Number.parseInt(String(value ?? "").trim(), 10);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+
+  const getRangeFeetFromObj = (obj) => {
+    const range = obj?.range ?? obj?.system?.range ?? {};
+    const units = String(range?.units ?? range?.unit ?? "").toLowerCase();
+    const raw = Number(range?.value ?? range?.distance ?? 0);
+    if (units === "touch") return 5;
+    if (["ft", "feet"].includes(units) && Number.isFinite(raw) && raw > 0) return Math.round(raw);
+    return 0;
+  };
+
+  let explicitTargetLimit = 0;
+  let explicitRangeFeet = 0;
+
+  const hasCombatFollowupWithoutSlot = activityObjects.some((activity) => {
+    const activityType = String(
+      activity?.type
+      ?? activity?.activityType
+      ?? activity?.activation?.type
+      ?? ""
+    ).toLowerCase();
+    const isCombatLike = /(attack|save|damage|heal)/.test(activityType)
+      || !!activity?.attack || !!activity?.save || !!activity?.damage || !!activity?.healing;
+    if (!isCombatLike) return false;
+
+    const noSlot = activity?.consumption?.spellSlot === false;
+    const override = activity?.activation?.override === true;
+    if (!noSlot && !override) return false;
+
+    const r = activity?.range ?? activity?.system?.range ?? {};
+    const rangeUnits = String(r?.units ?? r?.unit ?? "").toLowerCase();
+    const rangeValue = Number(r?.value ?? r?.distance ?? 0);
+    const isCloseCombatRange = rangeUnits === "touch"
+      || (rangeUnits === "ft" && Number.isFinite(rangeValue) && rangeValue > 0 && rangeValue <= 10);
+
+    return override || isCloseCombatRange;
+  });
+
+  const hasSummonLikeActivity = activityObjects.some((activity) => {
+    const activityType = String(
+      activity?.type
+      ?? activity?.activityType
+      ?? activity?.activation?.type
+      ?? ""
+    ).toLowerCase();
+    return /(summon|spawn|manifest|create)/.test(activityType);
+  });
+
+  for (const src of sources) {
+    const obj = src?.toObject?.() ?? src ?? {};
+    const target = obj.target ?? obj.system?.target ?? {};
+    const targetAffects = target?.affects ?? {};
+    const targetType = String(targetAffects?.type ?? target?.type ?? "").toLowerCase();
+    const targetCount = Number(targetAffects?.count ?? target?.count ?? target?.value ?? 0);
+    const range = obj.range ?? obj.system?.range ?? {};
+    const rangeUnits = String(range?.units ?? range?.unit ?? "").toLowerCase();
+    const activityType = String(obj.type ?? obj.activityType ?? obj?.activation?.type ?? "").toLowerCase();
+    const template = target?.template
+      ?? obj.template
+      ?? obj.area
+      ?? obj?.system?.template
+      ?? obj?.system?.area
+      ?? null;
+
+    const isSelf = targetType.includes("self") || rangeUnits === "self";
+    const hasTemplate = hasMeaningfulTemplateData(template);
+    const looksPlacedSpace = targetType.includes("space") || targetType.includes("location");
+    const looksTargeted = !isSelf && (
+      targetCount > 0
+      || /(creature|enemy|ally|allies|enemies|object|objects|token)/.test(targetType)
+    );
+    const isAttackOrSaveLike = /(attack|save|damage|heal)/.test(activityType)
+      || !!obj.attack || !!obj.save || !!obj.healing || !!obj.damage;
+    const hasReachRange = !!rangeUnits && !["", "none", "self", "touch"].includes(rangeUnits);
+    const likelyTargetByAction = !isSelf && !hasTemplate && isAttackOrSaveLike && (looksTargeted || hasReachRange || rangeUnits === "touch");
+
+    if (!isSelf && /(creature|enemy|ally|allies|enemies|object|objects|token)/.test(targetType)) {
+      explicitTargetLimit = Math.max(explicitTargetLimit, toPositiveInt(targetAffects?.count ?? target?.count ?? target?.value));
+    }
+    explicitRangeFeet = Math.max(explicitRangeFeet, getRangeFeetFromObj(obj));
+
+    if (isSelf || hasTemplate || looksPlacedSpace || looksTargeted || likelyTargetByAction) sawAnyRelevant = true;
+    if (!isSelf && (hasTemplate || looksPlacedSpace || looksTargeted || likelyTargetByAction)) sawOnlySelf = false;
+
+    if ((hasTemplate || looksPlacedSpace) && !isSelf) {
+      result.hasPlacementAssist = true;
+      if (!result.placementReason) result.placementReason = "This item uses a placed area/template.";
+      addReason("Requires placement");
+    }
+
+    if (looksTargeted || likelyTargetByAction) {
+      result.hasTargetAssist = true;
+      if (!result.targetReason) result.targetReason = "This item appears to target one or more creatures/objects.";
+      addReason("Can target creatures/objects");
+    }
+  }
+
+  // Fallback: if the item exposes target metadata on the root item and we somehow missed it.
+  const itemTargetType = String(item?.system?.target?.affects?.type ?? item?.system?.target?.type ?? "").toLowerCase();
+  if (!result.hasTargetAssist && /(creature|enemy|ally|object|token)/.test(itemTargetType)) {
+    result.hasTargetAssist = true;
+    result.targetReason = result.targetReason || "This item appears to target one or more creatures/objects.";
+  }
+  const itemTemplate = item?.system?.target?.template ?? item?.system?.template ?? item?.system?.area ?? null;
+  if (!result.hasPlacementAssist && hasMeaningfulTemplateData(itemTemplate)) {
+    result.hasPlacementAssist = true;
+    result.placementReason = result.placementReason || "This item uses a placed area/template.";
+  }
+  if (/(creature|enemy|ally|allies|enemies|object|objects|token)/.test(itemTargetType)) {
+    explicitTargetLimit = Math.max(
+      explicitTargetLimit,
+      toPositiveInt(item?.system?.target?.affects?.count ?? item?.system?.target?.count ?? item?.system?.target?.value)
+    );
+  }
+  explicitRangeFeet = Math.max(explicitRangeFeet, getRangeFeetFromObj(item?.system ?? {}));
+
+  // Some summons/created effects do not carry explicit template metadata in actor-owned items.
+  // Infer placement from structure: non-self ranged cast + summon-like/setup activity + no-slot follow-up combat action.
+  if (!result.hasPlacementAssist) {
+    const rootTargetType = String(
+      rootSystem?.target?.affects?.type
+      ?? rootSystem?.target?.type
+      ?? ""
+    ).toLowerCase();
+    const rootTemplate = rootSystem?.target?.template ?? rootSystem?.template ?? rootSystem?.area ?? null;
+    const rootRange = rootSystem?.range ?? {};
+    const rootRangeUnits = String(rootRange?.units ?? rootRange?.unit ?? "").toLowerCase();
+    const rootRangeValue = Number(rootRange?.value ?? rootRange?.distance ?? 0);
+
+    const rootHasExplicitTarget = !!rootTargetType && !["", "none", "self"].includes(rootTargetType);
+    const rootHasPlacementTemplate = hasMeaningfulTemplateData(rootTemplate);
+    const rootHasNonSelfRange = !!rootRangeUnits && !["", "none", "self", "touch"].includes(rootRangeUnits);
+    const rootHasDistance = Number.isFinite(rootRangeValue) ? rootRangeValue > 0 : rootHasNonSelfRange;
+
+    const looksLikePlacedSummon =
+      !rootHasExplicitTarget
+      && !rootHasPlacementTemplate
+      && rootHasNonSelfRange
+      && rootHasDistance
+      && (hasSummonLikeActivity || hasCombatFollowupWithoutSlot);
+
+    if (looksLikePlacedSummon) {
+      result.hasPlacementAssist = true;
+      result.placementReason = result.placementReason || "This item appears to create or place an effect at a chosen location.";
+      addReason("Requires placement");
+    }
+  }
+
+  // Generic relocation heuristic (not spell-name specific): items that describe
+  // teleporting/appearing in a chosen space should use placement assist.
+  if (!result.hasPlacementAssist) {
+    const textBits = [];
+    textBits.push(String(item?.name ?? ""));
+    textBits.push(String(rootSystem?.description?.value ?? ""));
+    textBits.push(String(rootSystem?.description?.chat ?? ""));
+    for (const activity of activityObjects) {
+      textBits.push(String(activity?.name ?? ""));
+      textBits.push(String(activity?.description?.value ?? ""));
+      textBits.push(String(activity?.description?.chat ?? ""));
+    }
+    const text = textBits.join(" ").toLowerCase();
+
+    const relocationPattern = /(teleport|unoccupied space|appears? in|choose(?:s|n)? a space|space you can see|reappear)/i;
+    const createdEffectAtRangePattern = /(create(?:s|d)?[^.]{0,120}(?:within range|in an? unoccupied space|at a point)|at a point you can see within range|in an unoccupied space you can see)/i;
+    const rootTargetType = String(
+      rootSystem?.target?.affects?.type
+      ?? rootSystem?.target?.type
+      ?? ""
+    ).toLowerCase();
+    const rootRangeUnits = String(rootSystem?.range?.units ?? rootSystem?.range?.unit ?? "").toLowerCase();
+    const rootRangeValue = Number(rootSystem?.range?.value ?? rootSystem?.range?.distance ?? 0);
+    const selfScoped = rootTargetType.includes("self") || rootRangeUnits === "self";
+    const rootHasExplicitTarget = !!rootTargetType && !["", "none", "self"].includes(rootTargetType);
+    const rootHasNonSelfRange = !!rootRangeUnits && !["", "none", "self"].includes(rootRangeUnits);
+    const rootHasDistance = Number.isFinite(rootRangeValue) ? rootRangeValue > 0 : rootHasNonSelfRange;
+
+    if (
+      (selfScoped && relocationPattern.test(text))
+      || (!rootHasExplicitTarget && rootHasNonSelfRange && rootHasDistance && createdEffectAtRangePattern.test(text))
+    ) {
+      result.hasPlacementAssist = true;
+      result.placementReason = result.placementReason || "This item appears to require choosing a destination/location.";
+      addReason("Requires placement");
+    }
+  }
+
+  result.targetLimit = explicitTargetLimit;
+  result.rangeFeet = explicitRangeFeet;
+  result.selfOnly = !!(sawAnyRelevant && sawOnlySelf && !result.hasPlacementAssist && !result.hasTargetAssist);
+  return result;
+}
+
+function buildUseConfirmTargetingAssistHtml({ state }) {
+  const assist = state?.assistMeta ?? {};
+  if (!assist?.hasTargetAssist) return "";
+  if (assist?.hasPlacementAssist) return "";
+  const limit = Number.parseInt(String(assist?.targetLimit ?? 0), 10);
+  const range = Number.parseInt(String(assist?.rangeFeet ?? 0), 10);
+  const parts = [];
+  if (Number.isFinite(limit) && limit > 0) parts.push(`up to ${limit} target${limit === 1 ? "" : "s"}`);
+  if (Number.isFinite(range) && range > 0) parts.push(`within ${range} ft`);
+  const dynamicLine = parts.length
+    ? `Select ${parts.join(" ")}.`
+    : "Select target(s) as needed.";
+
+  return `
+    <p class="ss-hint-section-title"><strong>Targeting:</strong></p>
+    <div class="ss-use-confirm-assist ss-use-confirm-targeting-assist">
+      <p class="ss-use-confirm-assist-text">${escapeHtml(dynamicLine)}</p>
+      <button type="button" class="ss-use-confirm-open-targeting" data-ss-actor-id="${escapeHtml(String(state?.actorId ?? ""))}">Select Target (optional)</button>
+      <div class="ss-use-confirm-target-live" data-ss-target-live style="display:none"></div>
+    </div>
+  `;
+}
+
+function buildUseConfirmPlacementAssistHtml({ state }) {
+  const assist = state?.assistMeta ?? {};
+  if (!assist?.hasPlacementAssist) return "";
+  return `
+    <p class="ss-hint-section-title"><strong>Placement:</strong></p>
+    <div class="ss-use-confirm-assist ss-use-confirm-placement-assist">
+      <p class="ss-use-confirm-assist-text">${escapeHtml(assist.placementReason || "This item needs placement on the map.")}</p>
+      <p class="ss-use-confirm-assist-note">After you press <strong>Yes</strong>, Ping On Map will open automatically and request a snapshot from the GM.</p>
+    </div>
+  `;
+}
+
+function renderUseConfirmAssistIntoScope(scope, state) {
+  if (!(scope instanceof HTMLElement)) return;
+  const targetingWrap = scope.querySelector(".ss-targeting-assist-wrap");
+  if (targetingWrap) targetingWrap.innerHTML = buildUseConfirmTargetingAssistHtml({ state });
+
+  const placementWrap = scope.querySelector(".ss-placement-assist-wrap");
+  if (placementWrap) placementWrap.innerHTML = buildUseConfirmPlacementAssistHtml({ state });
+}
+
+function getSsSceneDoc(sceneId = "") {
+  const sid = String(sceneId ?? "").trim();
+  if (sid) return game.scenes?.get?.(sid) ?? null;
+  return game.scenes?.viewed ?? null;
+}
+
+const SS_TARGET_LIST_FLAG_KEY = "ssTargetListInclude";
+
+function readSsTargetListInclude(actor) {
+  if (!actor) return false;
+  try {
+    const scoped = actor.getFlag?.(SS_MODULE_ID, SS_TARGET_LIST_FLAG_KEY);
+    if (typeof scoped === "boolean") return scoped;
+  } catch (_err) {
+    // ignore and fall through to raw flags
+  }
+  const flags = actor.flags ?? actor._source?.flags ?? {};
+  const scopedRaw = foundry.utils.getProperty(flags, `${SS_MODULE_ID}.${SS_TARGET_LIST_FLAG_KEY}`);
+  if (typeof scopedRaw === "boolean") return scopedRaw;
+  // Legacy fallback only reads raw data to avoid invalid scope exceptions from getFlag.
+  const legacyRaw = foundry.utils.getProperty(flags, `custom-js.${SS_TARGET_LIST_FLAG_KEY}`);
+  return !!legacyRaw;
+}
+
+async function writeSsTargetListInclude(actor, enabled) {
+  if (!actor) return;
+  const next = !!enabled;
+  try {
+    await actor.setFlag(SS_MODULE_ID, SS_TARGET_LIST_FLAG_KEY, next);
+    return;
+  } catch (_err) {
+    await actor.update({ [`flags.${SS_MODULE_ID}.${SS_TARGET_LIST_FLAG_KEY}`]: next });
+  }
+}
+
+function getSsTargetTokenIdsForUserOnScene(user, sceneId) {
+  const sid = String(sceneId ?? "").trim();
+  if (!user) return [];
+  const sceneDoc = getSsSceneDoc(sid);
+  const sceneTokenIds = new Set(
+    Array.from(sceneDoc?.tokens?.contents ?? sceneDoc?.tokens ?? [])
+      .map((t) => String(t?.id ?? ""))
+      .filter(Boolean)
+  );
+  const ids = new Set();
+
+  const targets = Array.from(user.targets ?? []);
+  for (const target of targets) {
+    const sceneMatch = String(target?.document?.parent?.id ?? target?.scene?.id ?? "") === sid;
+    if (!sid || sceneMatch) {
+      const tid = String(target?.id ?? target?.document?.id ?? "");
+      if (tid && (!sid || sceneTokenIds.has(tid))) ids.add(tid);
+    }
+  }
+
+  const activitySceneId = String(user?.activity?.scene ?? user?.activity?.sceneId ?? "");
+  const activityTargets = Array.isArray(user?.activity?.targets) ? user.activity.targets : [];
+  for (const entry of activityTargets) {
+    const tid = String(
+      (typeof entry === "string" ? entry : (entry?.token ?? entry?.id ?? entry?.target ?? ""))
+    ).trim();
+    if (!tid) continue;
+    if (sid && activitySceneId && activitySceneId !== sid) continue;
+    if (sid && !sceneTokenIds.has(tid)) continue;
+    ids.add(tid);
+  }
+
+  return Array.from(ids);
+}
+
+function getSsActiveGmUser() {
+  return game.users?.find?.((u) => !!u?.isGM && !!u?.active) ?? game.users?.find?.((u) => !!u?.isGM) ?? null;
+}
+
+function getSsLiveTargetRefsForScene(sceneId = "", fallbackRefs = [], { includeFallback = false } = {}) {
+  const sid = String(sceneId ?? "").trim();
+  const out = new Set();
+
+  const pushTokenIds = (ids) => {
+    for (const id of (ids ?? [])) {
+      const tid = String(id ?? "").trim();
+      if (!tid) continue;
+      out.add(`token:${tid}`);
+    }
+  };
+
+  const gm = getSsActiveGmUser();
+  if (gm) {
+    // GM is authoritative for shared targeting state.
+    pushTokenIds(getSsTargetTokenIdsForUserOnScene(gm, sid));
+  } else {
+    pushTokenIds(getSsTargetTokenIdsForUserOnScene(game.user, sid));
+  }
+
+  const proxyForSelf = getProxyTargetsForUser(game.user?.id);
+  if (proxyForSelf && out.size === 0) {
+    const proxyScene = String(proxyForSelf.sceneId ?? "");
+    if (!sid || !proxyScene || proxyScene === sid) pushTokenIds(proxyForSelf.tokenIds);
+  }
+
+  if (includeFallback && out.size === 0) {
+    for (const ref of (Array.isArray(fallbackRefs) ? fallbackRefs : [])) {
+      const raw = String(ref ?? "").trim();
+      if (!raw) continue;
+      out.add(raw.includes(":") ? raw : `token:${raw}`);
+    }
+  }
+
+  return out;
+}
+
+function getSsTargetNamesFromRefs(sceneId = "", refs = []) {
+  const sceneDoc = getSsSceneDoc(sceneId);
+  const sceneTokens = Array.from(sceneDoc?.tokens?.contents ?? sceneDoc?.tokens ?? []);
+  const byId = new Map(sceneTokens.map((t) => [String(t?.id ?? ""), t]));
+  const names = [];
+  for (const ref of refs) {
+    const raw = String(ref ?? "").trim();
+    if (!raw) continue;
+    let tokenId = raw;
+    if (raw.includes(":")) tokenId = raw.slice(raw.indexOf(":") + 1).trim();
+    const tokenDoc = byId.get(tokenId);
+    if (tokenDoc?.name) names.push(String(tokenDoc.name));
+  }
+  return names;
+}
+
+function getSsTargetEntriesFromRefs(sceneId = "", refs = []) {
+  const sceneDoc = getSsSceneDoc(sceneId);
+  const sceneTokens = Array.from(sceneDoc?.tokens?.contents ?? sceneDoc?.tokens ?? []);
+  const byId = new Map(sceneTokens.map((t) => [String(t?.id ?? ""), t]));
+  const entries = [];
+  const seen = new Set();
+  for (const ref of refs) {
+    const raw = String(ref ?? "").trim();
+    if (!raw) continue;
+    let tokenId = raw;
+    if (raw.includes(":")) tokenId = raw.slice(raw.indexOf(":") + 1).trim();
+    if (!tokenId || seen.has(tokenId)) continue;
+    const tokenDoc = byId.get(tokenId);
+    if (!tokenDoc?.name) continue;
+    const actorDoc = tokenDoc.actor ?? game.actors?.get?.(tokenDoc.actorId) ?? null;
+    entries.push({
+      tokenId,
+      name: String(tokenDoc.name),
+      img: String(tokenDoc.texture?.src ?? actorDoc?.img ?? "").trim()
+    });
+    seen.add(tokenId);
+  }
+  return entries;
+}
+
+function getUseConfirmTargetContext(state) {
+  const actorId = String(state?.actorId ?? "").trim();
+  const form = actorId
+    ? Array.from(document.querySelectorAll(SS_SHEET_FORM_SELECTOR))
+      .find((f) => String(f?.dataset?.actorId ?? "") === actorId)
+    : null;
+
+  const sceneId =
+    String(form?.querySelector?.(".ss-target-panel-overlay")?.dataset?.ssSceneId ?? "").trim()
+    || String(game.combat?.scene?.id ?? game.combat?.sceneId ?? game.scenes?.viewed?.id ?? "");
+
+  const refs = Array.from(getSsLiveTargetRefsForScene(sceneId, [], { includeFallback: false }));
+  return { sceneId, refs, form };
+}
+
+function renderUseConfirmLiveTargetSummary(scope, state) {
+  if (!(scope instanceof HTMLElement)) return;
+  const node = scope.querySelector(".ss-use-confirm-target-live[data-ss-target-live]");
+  if (!(node instanceof HTMLElement)) return;
+
+  const { sceneId, refs } = getUseConfirmTargetContext(state);
+  const entries = getSsTargetEntriesFromRefs(sceneId, refs);
+  if (!entries.length) {
+    node.style.display = "none";
+    node.innerHTML = "";
+    return;
+  }
+  node.style.display = "block";
+  node.innerHTML = `
+    <strong>Targeting:</strong>
+    <div class="ss-use-confirm-target-live-list">
+      ${entries.map((entry) => `
+        <div class="ss-use-confirm-target-live-item">
+          <span class="ss-use-confirm-target-live-avatar"${entry.img ? ` style="background-image:url('${escapeHtml(entry.img)}')"` : ""}></span>
+          <span class="ss-use-confirm-target-live-name">${escapeHtml(entry.name)}</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function getSsHighestWindowZ() {
+  let maxZ = 2000;
+  const nodes = document.querySelectorAll(".app.window-app, dialog.application");
+  for (const node of nodes) {
+    if (!(node instanceof HTMLElement)) continue;
+    const z = Number.parseInt(getComputedStyle(node).zIndex ?? "", 10);
+    if (Number.isFinite(z)) maxZ = Math.max(maxZ, z);
+  }
+  return maxZ;
+}
+
+function bringSsSheetToFront(scope) {
+  if (!(scope instanceof HTMLElement)) return;
+  const appShell = scope.closest(".application, .window-app");
+  if (!(appShell instanceof HTMLElement)) return;
+  if (!appShell.dataset.ssPrevZIndex) {
+    appShell.dataset.ssPrevZIndex = appShell.style.zIndex ?? "";
+  }
+  const targetZ = Math.max(getSsHighestWindowZ() + 3, 2147482400);
+  appShell.style.setProperty("z-index", String(targetZ), "important");
+}
+
+function restoreSsSheetZIndex(scope) {
+  if (!(scope instanceof HTMLElement)) return;
+  const appShell = scope.closest(".application, .window-app");
+  if (!(appShell instanceof HTMLElement)) return;
+  const prev = String(appShell.dataset.ssPrevZIndex ?? "");
+  if (prev) appShell.style.setProperty("z-index", prev);
+  else appShell.style.removeProperty("z-index");
+  delete appShell.dataset.ssPrevZIndex;
+}
+
+function openSsTargetingPanelForActor(actorId, options = {}) {
+  const aid = String(actorId ?? "").trim();
+  if (!aid) return false;
+
+  const forms = Array.from(document.querySelectorAll(SS_SHEET_FORM_SELECTOR));
+  const scope = forms.find((f) => String(f?.dataset?.actorId ?? "") === aid)
+    ?? null;
+  if (!(scope instanceof HTMLElement)) return false;
+
+  const forceTargeting = !!options?.forceTargeting;
+  const targetLimit = Number.parseInt(String(options?.targetLimit ?? 0), 10);
+  const rangeFeet = Number.parseInt(String(options?.rangeFeet ?? 0), 10);
+  scope.dataset.ssTargetForce = forceTargeting ? "1" : "0";
+  scope.dataset.ssTargetLimit = Number.isFinite(targetLimit) && targetLimit > 0 ? String(targetLimit) : "0";
+  scope.dataset.ssTargetRangeFeet = Number.isFinite(rangeFeet) && rangeFeet > 0 ? String(rangeFeet) : "0";
+
+  bringSsSheetToFront(scope);
+
+  const openPanel = scope.__ssOpenTargetPanel;
+  if (typeof openPanel === "function") {
+    return !!openPanel({ openFromUse: forceTargeting });
+  }
+
+  const targetTab = scope.querySelector("a.ss-target-fs-toggle");
+  if (targetTab instanceof HTMLElement) {
+    if (forceTargeting) targetTab.dataset.ssOpenFromUse = "1";
+    targetTab.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    return true;
+  }
+  return false;
+}
+
 function renderUseConfirmHintsIntoScope(scope, hintSet) {
   if (!(scope instanceof HTMLElement)) return;
   const rolls = Array.isArray(hintSet?.rolls) ? hintSet.rolls : [];
@@ -969,6 +1500,14 @@ function evaluateUseConfirmInvalidReason(scope, state) {
   const turnLockReason = evaluateUseConfirmTurnLockReason(state);
   if (turnLockReason) return turnLockReason;
 
+  const targetLimit = Number.parseInt(String(state?.assistMeta?.targetLimit ?? 0), 10);
+  if (state?.assistMeta?.hasTargetAssist && Number.isFinite(targetLimit) && targetLimit > 0) {
+    const { refs } = getUseConfirmTargetContext(state);
+    if (refs.length > targetLimit) {
+      return `Too many targets selected (${refs.length}/${targetLimit}). Open Select Target and reduce the selection.`;
+    }
+  }
+
   if (state?.requireSlot) {
     const level = getUseConfirmSelectedLevel(scope, state);
     const levelKey = String(level ?? "");
@@ -1002,6 +1541,8 @@ function syncUseConfirmDialogState(scope, state) {
   const ammoId = getUseConfirmSelectedAmmoId(scope, state);
   const hintSet = resolveUseConfirmHintSet(state, level, ammoId);
   renderUseConfirmHintsIntoScope(scope, hintSet);
+  renderUseConfirmAssistIntoScope(scope, state);
+  renderUseConfirmLiveTargetSummary(scope, state);
 
   const invalidReason = evaluateUseConfirmInvalidReason(scope, state);
   const turnLockReason = evaluateUseConfirmTurnLockReason(state);
@@ -1067,6 +1608,105 @@ if (!globalThis.__SS_USE_CONFIRM_INFO_CLICK_BOUND__) {
   }, true);
 }
 
+if (!globalThis.__SS_USE_CONFIRM_TARGETING_CLICK_BOUND__) {
+  globalThis.__SS_USE_CONFIRM_TARGETING_CLICK_BOUND__ = true;
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const btn = target.closest(".ss-use-confirm-open-targeting");
+    if (!(btn instanceof HTMLButtonElement)) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const actorId = String(btn.dataset?.ssActorId ?? "").trim();
+    const scope = btn.closest(".ss-use-confirm[data-ss-hints-key]");
+    const key = String(scope?.dataset?.ssHintsKey ?? "").trim();
+    const state = key ? ssUseConfirmHintState.get(key) : null;
+    const targetLimit = Number.parseInt(String(state?.assistMeta?.targetLimit ?? 0), 10);
+    const rangeFeet = Number.parseInt(String(state?.assistMeta?.rangeFeet ?? 0), 10);
+    const opened = openSsTargetingPanelForActor(actorId, {
+      forceTargeting: true,
+      targetLimit: Number.isFinite(targetLimit) && targetLimit > 0 ? targetLimit : 0,
+      rangeFeet: Number.isFinite(rangeFeet) && rangeFeet > 0 ? rangeFeet : 0
+    });
+    if (!opened) {
+      ui.notifications?.warn?.("Could not open the Ping panel.");
+      return;
+    }
+    if (scope instanceof HTMLElement && key) {
+      if (state) {
+        window.setTimeout(() => syncUseConfirmDialogState(scope, state), 250);
+        window.setTimeout(() => syncUseConfirmDialogState(scope, state), 1000);
+      }
+    }
+  }, true);
+}
+
+function refreshAllUseConfirmLiveTargetSummaries() {
+  const scopes = document.querySelectorAll(".ss-use-confirm[data-ss-hints-key]");
+  scopes.forEach((scope) => {
+    if (!(scope instanceof HTMLElement)) return;
+    const key = String(scope.dataset?.ssHintsKey ?? "");
+    if (!key) return;
+    const state = ssUseConfirmHintState.get(key);
+    if (!state) return;
+    renderUseConfirmLiveTargetSummary(scope, state);
+  });
+}
+
+function syncOpenTargetPanelsWithLiveTargets() {
+  const forms = document.querySelectorAll(SS_SHEET_FORM_SELECTOR);
+  forms.forEach((form) => {
+    if (!(form instanceof HTMLElement)) return;
+    const overlay = form.querySelector(".ss-target-panel-overlay");
+    if (!(overlay instanceof HTMLElement)) return;
+    const sceneId = String(
+      overlay.dataset?.ssSceneId
+      ?? game.combat?.scene?.id
+      ?? game.combat?.sceneId
+      ?? game.scenes?.viewed?.id
+      ?? ""
+    ).trim();
+    const refs = Array.from(getSsLiveTargetRefsForScene(sceneId));
+    overlay.dataset.ssSelectionDirty = "0";
+    overlay.dataset.ssSelectedTokens = refs.join(",");
+    if (typeof form.__ssRenderTargetPanel === "function" && form.classList.contains("ss-target-panel-open")) {
+      try {
+        form.__ssRenderTargetPanel();
+      } catch (_err) {
+        // noop
+      }
+    }
+  });
+}
+
+function resetSsTargetsForActor(actor) {
+  if (game.user?.isGM) return;
+  const actorId = String(actor?.id ?? "").trim();
+  if (!actorId) return;
+
+  const sceneId = String(
+    getActiveCombatForViewedScene()?.scene?.id
+    ?? getActiveCombatForViewedScene()?.sceneId
+    ?? game.scenes?.viewed?.id
+    ?? ""
+  );
+
+  setProxyTargetsForUser(game.user?.id, sceneId, []);
+  const ts = Date.now();
+  const sent = sendCommandToGmSocket("ssTarget", {
+    mode: "set",
+    sceneId,
+    payload: "-",
+    timestamp: ts,
+    userId: game.user?.id ?? null
+  });
+  if (!sent) {
+    sendCommandToGmWhisper(`!ss-target set ${sceneId} - ${ts} ${game.user?.id ?? ""}`, { includeSelf: true });
+  }
+}
+
 async function confirmTapToCast(itemOrName, actor = null) {
   const item = (typeof itemOrName === "object" && itemOrName) ? itemOrName : null;
   const itemName = item?.name ?? String(itemOrName ?? "item");
@@ -1081,6 +1721,16 @@ async function confirmTapToCast(itemOrName, actor = null) {
   const itemUsesValue = Number(item?.system?.uses?.value ?? 0);
   const itemUsesMax = Number(item?.system?.uses?.max ?? 0);
   const requireItemUses = Number.isFinite(itemUsesMax) && itemUsesMax > 0;
+  const assistMeta = item ? classifySsUseAssist(item, actor) : {
+    hasTargetAssist: false, hasPlacementAssist: false, selfOnly: false, targetLimit: 0, rangeFeet: 0
+  };
+  if (item && actor && !game.user?.isGM) {
+    const combat = getActiveCombatForViewedScene();
+    const turnAccess = getCombatTurnAccessForUser(game.user?.id ?? null, { combat });
+    if (!(combat && turnAccess.locked)) {
+      resetSsTargetsForActor(actor);
+    }
+  }
 
   const splitHints = (level = null, ammoId = null) => {
     const hints = item ? collectItemRollHints(item, actor, level, ammoId) : [];
@@ -1112,7 +1762,9 @@ async function confirmTapToCast(itemOrName, actor = null) {
       slotByLevel,
       ammoById,
       enforceCombatTurnLock: !!actor,
-      userId: game.user?.id ?? null
+      userId: game.user?.id ?? null,
+      actorId: actor?.id ?? item?.parent?.id ?? "",
+      assistMeta
     });
     setTimeout(() => ssUseConfirmHintState.delete(dialogKey), 120000);
   }
@@ -1123,15 +1775,13 @@ async function confirmTapToCast(itemOrName, actor = null) {
     : "";
   const infoButtonHtml = item?.uuid
     ? `<button type="button"
-        class="ss-use-confirm-info item-tooltip"
-        aria-label="Show Details"
-        title="Show Details"
+        class="ss-use-confirm-info"
+        aria-label="Open Item Details"
+        title="Open Item Details"
         data-uuid="${escapeHtml(item.uuid)}"
-        data-action="ssTooltip"
-        data-tooltip="<section class=&quot;loading&quot; data-uuid=&quot;${escapeHtml(item.uuid)}&quot;><i class=&quot;fas fa-spinner fa-spin-pulse&quot;></i></section>"
-        data-tooltip-class="dnd5e2 dnd5e-tooltip item-tooltip themed theme-light"
-        data-tooltip-direction="LEFT">
+        data-action="ssTooltip">
         <i class="fa-solid fa-circle-info" inert></i>
+        <span class="ss-use-confirm-info-text">Info</span>
       </button>`
     : "";
   const levelHtml = showLevelPicker
@@ -1188,6 +1838,8 @@ async function confirmTapToCast(itemOrName, actor = null) {
         <div class="ss-roll-hints-wrap">${hintsHtml}</div>
         <div class="ss-consumes-wrap">${consumesHtml}</div>
         <div class="ss-components-wrap">${componentsHtml}</div>
+        <div class="ss-targeting-assist-wrap"></div>
+        <div class="ss-placement-assist-wrap"></div>
       </div>
     </section>
   `;
@@ -1206,16 +1858,16 @@ async function confirmTapToCast(itemOrName, actor = null) {
 
         if (syncState.invalidReason) {
           ui.notifications.warn(syncState.invalidReason);
-          return { confirmed: false, slotLevel: null, ammoItemId: null };
+          return { confirmed: false, slotLevel: null, ammoItemId: null, requestPlacementPing: false };
         }
 
         const pickedLevel = Number.parseInt(String(syncState.level ?? ""), 10);
         const slotLevel = Number.isFinite(pickedLevel) && pickedLevel > 0 ? pickedLevel : null;
         const ammoItemId = String(syncState.ammoId ?? "").trim() || null;
-        return { confirmed: true, slotLevel, ammoItemId };
+        return { confirmed: true, slotLevel, ammoItemId, requestPlacementPing: !!state?.assistMeta?.hasPlacementAssist };
       },
       no: () => {
-        return { confirmed: false, slotLevel: null, ammoItemId: null };
+        return { confirmed: false, slotLevel: null, ammoItemId: null, requestPlacementPing: false };
       },
       defaultYes: false
     }, {
@@ -1234,27 +1886,28 @@ async function confirmTapToCast(itemOrName, actor = null) {
     const result = await resultPromise;
     ssUseConfirmHintState.delete(dialogKey);
     if (result && typeof result === "object" && "confirmed" in result) return result;
-    return { confirmed: !!result, slotLevel: null, ammoItemId: null };
+    return { confirmed: !!result, slotLevel: null, ammoItemId: null, requestPlacementPing: false };
   }
 
   // Fallback if a confirm dialog helper is unavailable.
   if (requiresSpellSlots && (!castChoices.length || !castChoices.some((c) => Number(c.value ?? 0) > 0))) {
     ui.notifications.warn("No spell slots left.");
-    return { confirmed: false, slotLevel: null, ammoItemId: null };
+    return { confirmed: false, slotLevel: null, ammoItemId: null, requestPlacementPing: false };
   }
   if (requireItemUses && (!Number.isFinite(itemUsesValue) || itemUsesValue <= 0)) {
     ui.notifications.warn("No uses left for this item.");
-    return { confirmed: false, slotLevel: null, ammoItemId: null };
+    return { confirmed: false, slotLevel: null, ammoItemId: null, requestPlacementPing: false };
   }
   if (ammoConfig.required && (!ammoConfig.choices.length || !ammoConfig.choices.some((c) => Number(c.qty ?? 0) > 0))) {
     ui.notifications.warn("No compatible ammo available.");
-    return { confirmed: false, slotLevel: null, ammoItemId: null };
+    return { confirmed: false, slotLevel: null, ammoItemId: null, requestPlacementPing: false };
   }
   const hintText = initial.rolls.length ? `\nSuggested roll: ${initial.rolls[0]}` : "";
   return {
     confirmed: !!globalThis.confirm?.(`Use ${itemName} now?${hintText}`),
     slotLevel: defaultLevel,
-    ammoItemId: defaultAmmoId || null
+    ammoItemId: defaultAmmoId || null,
+    requestPlacementPing: !!assistMeta?.hasPlacementAssist
   };
 }
 globalThis.ssCollectItemRollHints = collectItemRollHints;
@@ -1734,12 +2387,39 @@ function isDpadEnabledByGm() {
 function emitPlayerControlsStateFromGm() {
   if (!game.user?.isGM) return;
   const enabled = game.user.getFlag("world", "dpadEnabled") ?? true;
-  game.socket?.emit?.("module.custom-js", {
+  emitSsSocketMessage({
     type: "ssControls",
     enabled: !!enabled,
     at: Date.now(),
     gmUserId: game.user.id
   });
+}
+
+function emitSsTargetUiSyncFromGm(sceneId = "") {
+  if (!game.user?.isGM) return;
+  emitSsSocketMessage({
+    type: "ssTargetUiSync",
+    sceneId: String(sceneId ?? ""),
+    at: Date.now(),
+    gmUserId: game.user.id
+  });
+}
+
+function queueSsTargetUiSyncFromGm(sceneId = "") {
+  if (!game.user?.isGM) return;
+  const sid = String(
+    sceneId
+    ?? game.combat?.scene?.id
+    ?? game.combat?.sceneId
+    ?? game.scenes?.viewed?.id
+    ?? ""
+  ).trim();
+  if (sid) ssTargetUiSyncEmitState.sceneId = sid;
+  if (ssTargetUiSyncEmitState.timer) window.clearTimeout(ssTargetUiSyncEmitState.timer);
+  ssTargetUiSyncEmitState.timer = window.setTimeout(() => {
+    ssTargetUiSyncEmitState.timer = null;
+    emitSsTargetUiSyncFromGm(ssTargetUiSyncEmitState.sceneId || sid);
+  }, 60);
 }
 
 function ensurePlayerPauseBanner() {
@@ -1778,7 +2458,7 @@ function getActiveCombatForViewedScene() {
   if (!(combat.combatants?.size > 0)) return null;
 
   const viewedSceneId = game.scenes?.viewed?.id ?? null;
-  const combatSceneId = combat.scene?.id ?? combat.sceneId ?? null;
+  const combatSceneId = combat?.scene?.id ?? combat?.sceneId ?? null;
   if (viewedSceneId && combatSceneId && viewedSceneId !== combatSceneId) return null;
 
   return combat;
@@ -1872,21 +2552,27 @@ function getActiveGmIds() {
   return game.users.filter((u) => u.isGM && u.active).map((u) => u.id);
 }
 
-function sendCommandToGmSocket(type, payload = {}) {
-  if (!type || typeof type !== "string") return false;
-  if (!game.socket?.emit) return false;
-  if (!getActiveGmIds().length) return false;
+const SS_SOCKET_CHANNEL_PRIMARY = "module.sheet-sidekick";
 
+function emitSsSocketMessage(payload = {}) {
+  if (!game.socket?.emit) return false;
   try {
-    game.socket.emit("module.custom-js", {
-      type,
-      ...payload,
-      userId: payload.userId ?? game.user?.id ?? null
-    });
+    game.socket.emit(SS_SOCKET_CHANNEL_PRIMARY, payload);
     return true;
-  } catch (_err) {
+  } catch (_errPrimary) {
     return false;
   }
+}
+
+function sendCommandToGmSocket(type, payload = {}) {
+  if (!type || typeof type !== "string") return false;
+  if (!getActiveGmIds().length) return false;
+
+  return emitSsSocketMessage({
+    type,
+    ...payload,
+    userId: payload.userId ?? game.user?.id ?? null
+  });
 }
 
 function sendCommandToGmWhisper(content, options = {}) {
@@ -1945,6 +2631,82 @@ function sendUseInfoToGmWhisper(actor, item, slotLevel = null, ammoItemId = null
   }).catch((err) => {
     console.error("Sheet Sidekick use info whisper failed:", err);
   });
+  return true;
+}
+
+const ssSpellPrepQueueByKey = globalThis.__SS_SPELL_PREP_QUEUE_BY_KEY__ ?? (globalThis.__SS_SPELL_PREP_QUEUE_BY_KEY__ = new Map());
+
+function getSsSpellPrepQueueKey(actorId, itemId) {
+  return `${String(actorId ?? "").trim()}::${String(itemId ?? "").trim()}`;
+}
+
+function getSsPrepareButtons(actorId, itemId) {
+  const aid = String(actorId ?? "").trim();
+  const iid = String(itemId ?? "").trim();
+  if (!aid || !iid) return [];
+  const escapedId = globalThis.CSS?.escape ? CSS.escape(iid) : iid.replace(/["\\]/g, "\\$&");
+  const forms = Array.from(document.querySelectorAll(SS_SHEET_FORM_SELECTOR))
+    .filter((form) => String(form?.dataset?.actorId ?? "") === aid);
+  const buttons = [];
+  forms.forEach((form) => {
+    form.querySelectorAll(`li.item[data-item-id="${escapedId}"] .item-action[data-action="prepare"]`).forEach((btn) => {
+      if (btn instanceof HTMLElement) buttons.push(btn);
+    });
+  });
+  return buttons;
+}
+
+function setSsPrepareVisualState(actorId, itemId, prepared, pending = true) {
+  getSsPrepareButtons(actorId, itemId).forEach((btn) => {
+    btn.setAttribute("aria-pressed", String(!!prepared));
+    btn.classList.toggle("active", !!prepared);
+    btn.classList.toggle("ss-prepare-pending", !!pending);
+  });
+}
+
+function queueSsSpellPrepareToggle({ actor, item, desiredPrepared }) {
+  const actorId = String(actor?.id ?? "").trim();
+  const itemId = String(item?.id ?? "").trim();
+  if (!actorId || !itemId) return false;
+  const nextPrepared = !!desiredPrepared;
+  const key = getSsSpellPrepQueueKey(actorId, itemId);
+  const existing = ssSpellPrepQueueByKey.get(key) ?? { timer: null, clearTimer: null, desiredPrepared: null };
+  existing.desiredPrepared = nextPrepared;
+  if (existing.timer) window.clearTimeout(existing.timer);
+  setSsPrepareVisualState(actorId, itemId, nextPrepared, true);
+  restoreOpenSheetScrollForActor(actorId);
+
+  existing.timer = window.setTimeout(() => {
+    const state = ssSpellPrepQueueByKey.get(key);
+    if (!state) return;
+    const desired = !!state.desiredPrepared;
+    const ts = Date.now();
+    const sent = sendCommandToGmSocket("ssPrep", {
+      actorId,
+      itemId,
+      prepared: desired,
+      timestamp: ts,
+      userId: game.user?.id ?? null
+    });
+    if (!sent) {
+      sendCommandToGmWhisper(
+        `!ss-prep ${actorId} ${itemId} ${desired ? "1" : "0"} ${ts} ${game.user?.id ?? ""}`,
+        { includeSelf: true }
+      );
+    }
+    state.timer = null;
+    if (state.clearTimer) window.clearTimeout(state.clearTimer);
+    state.clearTimer = window.setTimeout(() => {
+      setSsPrepareVisualState(actorId, itemId, desired, false);
+      restoreOpenSheetScrollForActor(actorId);
+      const latest = ssSpellPrepQueueByKey.get(key);
+      if (!latest) return;
+      if (!latest.timer) ssSpellPrepQueueByKey.delete(key);
+    }, 1100);
+    ssSpellPrepQueueByKey.set(key, state);
+  }, 25);
+
+  ssSpellPrepQueueByKey.set(key, existing);
   return true;
 }
 
@@ -2095,6 +2857,81 @@ function waitForRenderedItemTooltip(timeoutMs = 1400) {
   });
 }
 
+function extractPlainTextFromHtml(html) {
+  const raw = String(html ?? "").trim();
+  if (!raw) return "";
+  const root = document.createElement("div");
+  root.innerHTML = raw;
+  return String(root.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
+function pickFirstMeaningfulHtml(candidates = []) {
+  for (const candidate of candidates) {
+    const raw = String(candidate ?? "").trim();
+    if (!raw) continue;
+    if (extractPlainTextFromHtml(raw).length > 0) return raw;
+  }
+  return "";
+}
+
+async function getFallbackItemDescriptionHtml(uuid = "") {
+  const id = String(uuid ?? "").trim();
+  if (!id) return "";
+
+  let item = null;
+  try {
+    item = await fromUuid(id);
+  } catch (_err) {
+    item = null;
+  }
+  if (!item || item.documentName !== "Item") return "";
+
+  const system = item.system?.toObject?.() ?? item.system ?? {};
+  const desc = system?.description ?? {};
+  const candidates = [];
+  if (typeof desc === "string") candidates.push(desc);
+  else if (desc && typeof desc === "object") {
+    candidates.push(
+      desc.value,
+      desc.chat,
+      desc.unidentified,
+      desc.public,
+      desc.publicNotes,
+      desc.gm,
+      desc.gmNotes
+    );
+  }
+
+  const activities = getSsItemActivities(item);
+  for (const activity of activities) {
+    const a = activity?.toObject?.() ?? activity ?? {};
+    const ad = a?.description ?? {};
+    if (typeof ad === "string") candidates.push(ad);
+    else if (ad && typeof ad === "object") candidates.push(ad.value, ad.chat);
+  }
+
+  const raw = pickFirstMeaningfulHtml(candidates);
+  if (!raw) return "";
+
+  let enriched = raw;
+  try {
+    enriched = await TextEditor.enrichHTML(raw, {
+      async: true,
+      secrets: false,
+      rollData: item?.parent?.getRollData?.() ?? {}
+    });
+  } catch (_err) {
+    enriched = raw;
+  }
+
+  return `
+    <section class="ss-fallback-item-description">
+      <h3>Description</h3>
+      <div class="description">${enriched}</div>
+    </section>
+  `;
+}
+
 function normalizeLockedTooltipMarkup(root) {
   if (!(root instanceof HTMLElement)) return;
 
@@ -2193,9 +3030,19 @@ async function openLockedItemTooltipDialogFromButton(btn, title = "Item Details"
 
   game.tooltip.activate(btn);
   const renderedContent = await waitForRenderedItemTooltip(1500);
-  const bodyHtml = renderedContent?.innerHTML?.trim()
+  let bodyHtml = renderedContent?.innerHTML?.trim()
     ? renderedContent.innerHTML
     : "<p>No details available.</p>";
+  const fallbackDescriptionHtml = await getFallbackItemDescriptionHtml(uuid);
+  if (fallbackDescriptionHtml) {
+    const probe = document.createElement("div");
+    probe.innerHTML = bodyHtml;
+    const descNode = probe.querySelector(".description, .item-description, .details .description");
+    const descText = String(descNode?.textContent ?? "").replace(/\s+/g, " ").trim();
+    if (!descNode || descText.length < 6 || /no details available/i.test(extractPlainTextFromHtml(bodyHtml))) {
+      bodyHtml = `${bodyHtml}${fallbackDescriptionHtml}`;
+    }
+  }
   const root = document.createElement("div");
   root.innerHTML = bodyHtml;
   normalizeLockedTooltipMarkup(root);
@@ -2498,7 +3345,6 @@ function ensureActionFilterBars(scope, actor) {
 
 const ssDpadNavObserverByForm = globalThis.__SS_DPAD_NAV_OBSERVERS__ ?? (globalThis.__SS_DPAD_NAV_OBSERVERS__ = new WeakMap());
 const ssDpadNavResizeObserverByForm = globalThis.__SS_DPAD_NAV_RESIZE_OBSERVERS__ ?? (globalThis.__SS_DPAD_NAV_RESIZE_OBSERVERS__ = new WeakMap());
-
 const ssSheetScrollState = globalThis.__SS_SHEET_SCROLL_STATE__ ?? (globalThis.__SS_SHEET_SCROLL_STATE__ = new Map());
 const ssSidebarPanelState = globalThis.__SS_SIDEBAR_PANEL_STATE__ ?? (globalThis.__SS_SIDEBAR_PANEL_STATE__ = new Map());
 const ssUiEnsureState = globalThis.__SS_UI_ENSURE_STATE__ ?? (globalThis.__SS_UI_ENSURE_STATE__ = {
@@ -2509,6 +3355,18 @@ const ssUiEnsureState = globalThis.__SS_UI_ENSURE_STATE__ ?? (globalThis.__SS_UI
 const ssFormRefreshState = globalThis.__SS_FORM_REFRESH_STATE__ ?? (globalThis.__SS_FORM_REFRESH_STATE__ = {
   timer: null
 });
+const ssTargetUiSyncEmitState = globalThis.__SS_TARGET_UI_SYNC_EMIT_STATE__ ?? (globalThis.__SS_TARGET_UI_SYNC_EMIT_STATE__ = {
+  timer: null,
+  sceneId: ""
+});
+const ssActorScrollRestoreQueue = globalThis.__SS_ACTOR_SCROLL_RESTORE_QUEUE__ ?? (globalThis.__SS_ACTOR_SCROLL_RESTORE_QUEUE__ = new Map());
+const ssActorScrollRestoreEpoch = globalThis.__SS_ACTOR_SCROLL_RESTORE_EPOCH__ ?? (globalThis.__SS_ACTOR_SCROLL_RESTORE_EPOCH__ = new Map());
+const ssScrollTraceState = globalThis.__SS_SCROLL_TRACE_STATE__ ?? (globalThis.__SS_SCROLL_TRACE_STATE__ = {
+  enabled: false,
+  max: 300,
+  events: []
+});
+const ssSheetAnchorState = globalThis.__SS_SHEET_ANCHOR_STATE__ ?? (globalThis.__SS_SHEET_ANCHOR_STATE__ = new Map());
 const ssProxyTargetsByUser = globalThis.__SS_PROXY_TARGETS_BY_USER__ ?? (globalThis.__SS_PROXY_TARGETS_BY_USER__ = new Map());
 
 function setProxyTargetsForUser(userId, sceneId, tokenIds) {
@@ -2715,15 +3573,6 @@ function decorateSheetSidekickTabs(scope) {
       dpad.innerHTML = `<i class="fa-solid fa-gamepad" inert></i><span class="ss-tab-label">Gamepad</span>`;
     }
   }
-
-  const target = tabsNav.querySelector("a.ss-target-fs-toggle");
-  if (target) {
-    target.classList.add("ss-nav-tab", "ss-tab-targets");
-    const hasLabel = !!target.querySelector(".ss-tab-label");
-    if (!hasLabel) {
-      target.innerHTML = `<i class="fa-solid fa-crosshairs" inert></i><span class="ss-tab-label">Targets</span>`;
-    }
-  }
 }
 
 function decorateSpellSlotPips(scope) {
@@ -2755,24 +3604,230 @@ function getSheetScrollKey(actor) {
   return `${game.user?.id ?? "u"}:${actor?.id ?? "a"}`;
 }
 
-function getSheetScrollElements(scope) {
-  const elements = [
-    scope.querySelector(".window-content"),
-    scope.querySelector(".sheet-body .tab-body"),
-    scope.querySelector(".sheet-body"),
-    scope.querySelector(".tab.active"),
-    scope.querySelector(".items-list"),
+function describeSsElementForTrace(el) {
+  if (!(el instanceof HTMLElement)) return "";
+  const bits = [el.tagName.toLowerCase()];
+  if (el.id) bits.push(`#${el.id}`);
+  const cls = String(el.className ?? "").trim().split(/\s+/).filter(Boolean).slice(0, 3);
+  if (cls.length) bits.push(`.${cls.join(".")}`);
+  return bits.join("");
+}
+
+function recordSsScrollTrace(type, details = {}) {
+  if (!ssScrollTraceState.enabled) return;
+  const ae = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const entry = {
+    t: new Date().toISOString(),
+    type: String(type ?? ""),
+    winY: Number(window.scrollY ?? window.pageYOffset ?? 0),
+    winX: Number(window.scrollX ?? window.pageXOffset ?? 0),
+    active: describeSsElementForTrace(ae),
+    ...details
+  };
+  ssScrollTraceState.events.push(entry);
+  if (ssScrollTraceState.events.length > ssScrollTraceState.max) {
+    ssScrollTraceState.events.splice(0, ssScrollTraceState.events.length - ssScrollTraceState.max);
+  }
+}
+
+function getSsScrollTraceSnapshotForScope(scope) {
+  if (!(scope instanceof HTMLElement)) return null;
+  const map = getSheetScrollElementMap(scope);
+  const out = {};
+  for (const [key, el] of Object.entries(map)) {
+    if (!el) continue;
+    out[key] = Number(el.scrollTop ?? 0);
+  }
+  return {
+    actorId: String(scope.dataset?.actorId ?? ""),
+    scope: describeSsElementForTrace(scope),
+    tabs: scope.querySelector(".tab.active")?.getAttribute?.("data-tab") ?? "",
+    tops: out
+  };
+}
+
+globalThis.ssEnableScrollTrace = (enabled = true) => {
+  ssScrollTraceState.enabled = !!enabled;
+  if (enabled) ssScrollTraceState.events = [];
+  console.info(`[Sheet Sidekick] scroll trace ${enabled ? "enabled" : "disabled"}.`);
+  return ssScrollTraceState.enabled;
+};
+
+globalThis.ssGetScrollTrace = () => ssScrollTraceState.events.slice();
+globalThis.ssPrintScrollTrace = (limit = 80) => {
+  const n = Math.max(1, Number(limit) || 80);
+  const rows = ssScrollTraceState.events.slice(-n);
+  try {
+    console.table(rows);
+  } catch (_err) {
+    console.log(rows);
+  }
+  return rows;
+};
+globalThis.ssScrollTraceToJson = (limit = 200) => {
+  const n = Math.max(1, Number(limit) || 200);
+  return JSON.stringify(ssScrollTraceState.events.slice(-n), null, 2);
+};
+
+function findSsScrollableAncestor(start, scope) {
+  let el = start instanceof HTMLElement ? start : null;
+  const stop = scope instanceof HTMLElement ? scope : null;
+  while (el && el !== stop) {
+    const cs = window.getComputedStyle(el);
+    const overflowY = String(cs.overflowY ?? "").toLowerCase();
+    const scrollableY = overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay";
+    if (scrollableY && (el.scrollHeight - el.clientHeight > 2)) return el;
+    el = el.parentElement;
+  }
+  return stop;
+}
+
+function saveSheetAnchor(scope, actor) {
+  if (!(scope instanceof HTMLElement) || !actor) return;
+  const key = getSheetScrollKey(actor);
+  const activeTab = scope.querySelector(".tab.active");
+  if (!(activeTab instanceof HTMLElement)) {
+    ssSheetAnchorState.delete(key);
+    return;
+  }
+
+  const rows = Array.from(activeTab.querySelectorAll("li.item[data-item-id]"));
+  if (!rows.length) {
+    ssSheetAnchorState.delete(key);
+    return;
+  }
+
+  const viewport = scope.querySelector(".window-content") ?? scope;
+  const vpRect = viewport.getBoundingClientRect();
+  const topEdge = vpRect.top + 6;
+  const bottomEdge = vpRect.bottom - 6;
+  const row = rows.find((r) => {
+    const rect = r.getBoundingClientRect();
+    return rect.bottom > topEdge && rect.top < bottomEdge;
+  }) ?? rows[0];
+  if (!(row instanceof HTMLElement)) {
+    ssSheetAnchorState.delete(key);
+    return;
+  }
+
+  const container = findSsScrollableAncestor(row, scope);
+  const cRect = (container instanceof HTMLElement ? container : viewport).getBoundingClientRect();
+  const rRect = row.getBoundingClientRect();
+  const offsetTop = rRect.top - cRect.top;
+  const anchor = {
+    tab: String(activeTab.dataset?.tab ?? ""),
+    itemId: String(row.dataset?.itemId ?? ""),
+    offsetTop: Number(offsetTop) || 0
+  };
+  ssSheetAnchorState.set(key, anchor);
+  recordSsScrollTrace("saveSheetAnchor", {
+    actorId: String(actor?.id ?? ""),
+    anchor
+  });
+}
+
+function restoreSheetAnchor(scope, actor) {
+  if (!(scope instanceof HTMLElement) || !actor) return;
+  const key = getSheetScrollKey(actor);
+  const anchor = ssSheetAnchorState.get(key);
+  if (!anchor) return;
+
+  const activeTab = scope.querySelector(".tab.active");
+  if (!(activeTab instanceof HTMLElement)) return;
+  const anchorTab = String(anchor.tab ?? "");
+  if (anchorTab && String(activeTab.dataset?.tab ?? "") !== anchorTab) return;
+
+  const itemId = String(anchor.itemId ?? "").trim();
+  if (!itemId) return;
+  const escaped = globalThis.CSS?.escape ? CSS.escape(itemId) : itemId.replace(/["\\]/g, "\\$&");
+  const row = activeTab.querySelector(`li.item[data-item-id="${escaped}"]`);
+  if (!(row instanceof HTMLElement)) return;
+
+  const container = findSsScrollableAncestor(row, scope);
+  if (!(container instanceof HTMLElement)) return;
+
+  const cRect = container.getBoundingClientRect();
+  const rRect = row.getBoundingClientRect();
+  const currentOffset = rRect.top - cRect.top;
+  const desiredOffset = Number(anchor.offsetTop ?? currentOffset);
+  const delta = currentOffset - desiredOffset;
+  if (Math.abs(delta) < 1) return;
+
+  container.scrollTop += delta;
+  recordSsScrollTrace("restoreSheetAnchor", {
+    actorId: String(actor?.id ?? ""),
+    itemId,
+    delta
+  });
+}
+
+function getSheetScrollElementMap(scope) {
+  return {
+    windowContent: scope.querySelector(".window-content"),
+    tabBody: scope.querySelector(".sheet-body .tab-body"),
+    sheetBody: scope.querySelector(".sheet-body"),
+    activeTab: scope.querySelector(".tab.active"),
+    itemsList: scope.querySelector(".items-list"),
     scope
-  ].filter(Boolean);
+  };
+}
+
+function resolveActorFromSheetScope(scope, app = null) {
+  const appActor = app?.actor ?? null;
+  if (appActor) return appActor;
+  if (!(scope instanceof HTMLElement)) return null;
+
+  const directId = String(
+    scope.dataset?.actorId
+    ?? scope.getAttribute?.("data-actor-id")
+    ?? scope.querySelector?.("[data-actor-id]")?.getAttribute?.("data-actor-id")
+    ?? scope.querySelector?.("input[name='actorId']")?.value
+    ?? ""
+  ).trim();
+  if (directId) {
+    const actor = game.actors?.get?.(directId) ?? null;
+    if (actor) return actor;
+  }
+
+  const windows = Object.values(ui.windows ?? {});
+  for (const win of windows) {
+    const actor = win?.actor ?? null;
+    if (!actor) continue;
+    const el = win?.element?.[0] ?? null;
+    if (!(el instanceof HTMLElement)) continue;
+    if (el === scope || el.contains(scope) || scope.contains(el)) return actor;
+  }
+  return null;
+}
+
+function getSheetScrollElements(scope) {
+  const elements = Object.values(getSheetScrollElementMap(scope)).filter(Boolean);
 
   // De-duplicate while preserving order.
   return Array.from(new Set(elements));
 }
 
 function saveSheetScroll(scope, actor) {
-  const elements = getSheetScrollElements(scope);
+  const elementMap = getSheetScrollElementMap(scope);
+  const positions = {};
+  for (const [key, el] of Object.entries(elementMap)) {
+    if (!el) continue;
+    positions[key] = {
+      top: Number(el.scrollTop ?? 0),
+      left: Number(el.scrollLeft ?? 0)
+    };
+  }
   ssSheetScrollState.set(getSheetScrollKey(actor), {
-    elements: elements.map(el => ({ top: el.scrollTop, left: el.scrollLeft }))
+    positions,
+    viewport: {
+      x: Number(window.scrollX ?? window.pageXOffset ?? 0),
+      y: Number(window.scrollY ?? window.pageYOffset ?? 0)
+    }
+  });
+  saveSheetAnchor(scope, actor);
+  recordSsScrollTrace("saveSheetScroll", {
+    actorId: String(actor?.id ?? ""),
+    snap: getSsScrollTraceSnapshotForScope(scope)
   });
 }
 
@@ -2780,25 +3835,118 @@ function restoreSheetScroll(scope, actor) {
   const state = ssSheetScrollState.get(getSheetScrollKey(actor));
   if (!state) return;
 
+  const elementMap = getSheetScrollElementMap(scope);
+  const hasMapped = state.positions && typeof state.positions === "object";
   const elements = getSheetScrollElements(scope);
-  if (!elements.length) return;
+  if (!hasMapped && !elements.length) return;
 
   const apply = () => {
-    elements.forEach((el, i) => {
-      const snap = state.elements?.[i];
-      if (!snap) return;
-      el.scrollTop = snap.top ?? 0;
-      el.scrollLeft = snap.left ?? 0;
+    if (hasMapped) {
+      for (const [key, snap] of Object.entries(state.positions)) {
+        const el = elementMap[key];
+        if (!el || !snap) continue;
+        el.scrollTop = Number(snap.top ?? 0);
+        el.scrollLeft = Number(snap.left ?? 0);
+      }
+      if (state.viewport) {
+        try {
+          window.scrollTo(Number(state.viewport.x ?? 0), Number(state.viewport.y ?? 0));
+        } catch (_err) {
+          // noop
+        }
+      }
+    } else {
+      // Legacy fallback for old shape.
+      elements.forEach((el, i) => {
+        const snap = state.elements?.[i];
+        if (!snap) return;
+        el.scrollTop = Number(snap.top ?? 0);
+        el.scrollLeft = Number(snap.left ?? 0);
+      });
+    }
+    recordSsScrollTrace("restoreSheetScroll.apply", {
+      actorId: String(actor?.id ?? ""),
+      snap: getSsScrollTraceSnapshotForScope(scope)
     });
+    restoreSheetAnchor(scope, actor);
   };
 
   requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      apply();
-      setTimeout(apply, 120);
-      setTimeout(apply, 350);
-    });
+    apply();
   });
+  recordSsScrollTrace("restoreSheetScroll.schedule", {
+    actorId: String(actor?.id ?? ""),
+    snap: getSsScrollTraceSnapshotForScope(scope)
+  });
+}
+
+function restoreOpenSheetScrollForActor(actorId) {
+  const aid = String(actorId ?? "").trim();
+  if (!aid) return;
+  const actor = game.actors?.get?.(aid) ?? null;
+  if (!actor) return;
+  const forms = Array.from(document.querySelectorAll(SS_SHEET_FORM_SELECTOR))
+    .filter((form) => String(form?.dataset?.actorId ?? "") === aid);
+  forms.forEach((form) => restoreSheetScroll(form, actor));
+}
+
+function saveOpenSheetScrollForActor(actorId) {
+  const aid = String(actorId ?? "").trim();
+  if (!aid) return;
+  const actor = game.actors?.get?.(aid) ?? null;
+  if (!actor) return;
+  const forms = Array.from(document.querySelectorAll(SS_SHEET_FORM_SELECTOR))
+    .filter((form) => String(form?.dataset?.actorId ?? "") === aid);
+  forms.forEach((form) => saveSheetScroll(form, actor));
+}
+
+function scheduleOpenSheetScrollRestore(actorId, delays = [0, 120], epoch = null) {
+  const aid = String(actorId ?? "").trim();
+  if (!aid) return;
+  const actor = game.actors?.get?.(aid) ?? null;
+  if (!actor) return;
+
+  const run = () => {
+    if (epoch !== null && ssActorScrollRestoreEpoch.get(aid) !== epoch) return;
+    const forms = Array.from(document.querySelectorAll(SS_SHEET_FORM_SELECTOR))
+      .filter((form) => String(form?.dataset?.actorId ?? "") === aid);
+    forms.forEach((form) => {
+      restoreSheetScroll(form, actor);
+      restoreSheetAnchor(form, actor);
+    });
+  };
+
+  for (const delay of delays) {
+    window.setTimeout(run, Number(delay) || 0);
+  }
+}
+
+function queueOpenSheetScrollRestore(actorId, delayMs = 40) {
+  const aid = String(actorId ?? "").trim();
+  if (!aid) return;
+  const prior = ssActorScrollRestoreQueue.get(aid);
+  if (prior) window.clearTimeout(prior);
+  const nextEpoch = Number(ssActorScrollRestoreEpoch.get(aid) ?? 0) + 1;
+  ssActorScrollRestoreEpoch.set(aid, nextEpoch);
+  recordSsScrollTrace("queueOpenSheetScrollRestore", { actorId: aid, delayMs: Number(delayMs) || 0 });
+  const timer = window.setTimeout(() => {
+    ssActorScrollRestoreQueue.delete(aid);
+    if (ssActorScrollRestoreEpoch.get(aid) !== nextEpoch) return;
+    recordSsScrollTrace("queueOpenSheetScrollRestore.fire", { actorId: aid, epoch: nextEpoch });
+    scheduleOpenSheetScrollRestore(aid, [0, 120], nextEpoch);
+  }, Math.max(0, Number(delayMs) || 0));
+  ssActorScrollRestoreQueue.set(aid, timer);
+}
+
+function saveAllOpenSheetScrolls() {
+  const forms = Array.from(document.querySelectorAll(SS_SHEET_FORM_SELECTOR));
+  for (const form of forms) {
+    if (!(form instanceof HTMLElement)) continue;
+    const actor = resolveActorFromSheetScope(form, null);
+    if (!actor) continue;
+    if (!form.dataset.actorId) form.dataset.actorId = String(actor.id ?? "");
+    saveSheetScroll(form, actor);
+  }
 }
 
 function syncSheetSidekickPortraitBackground(app, scope) {
@@ -2957,12 +4105,12 @@ function startSheetSidekickUiEnsure(durationMs = 10000) {
     const complete = forms.length > 0 && !needsWork;
     ssUiEnsureState.stableTicks = complete ? (ssUiEnsureState.stableTicks + 1) : 0;
 
-    if (Date.now() >= ssUiEnsureState.stopAt || ssUiEnsureState.stableTicks >= 4) {
+    if (Date.now() >= ssUiEnsureState.stopAt || ssUiEnsureState.stableTicks >= 3) {
       window.clearInterval(ssUiEnsureState.timer);
       ssUiEnsureState.timer = null;
       ssUiEnsureState.stableTicks = 0;
     }
-  }, 450);
+  }, 900);
 }
 globalThis.ssStartSheetSidekickUiEnsure = startSheetSidekickUiEnsure;
 
@@ -3677,15 +4825,16 @@ function injectSheetDpad(app, element) {
   try {
     if (game.user?.isGM) return;
 
-    const actor = app?.actor ?? null;
-    if (actor && actor.type !== "character") return;
-
     const root = (element instanceof HTMLElement) ? element : (element?.[0] instanceof HTMLElement) ? element[0] : null;
     if (!root) return;
 
     const form = (root.tagName === "FORM") ? root : root.querySelector("form") || root.closest("form");
     const scope = form ?? root;
     if (!scope?.matches?.(SS_SHEET_FORM_SELECTOR)) return;
+
+    const actor = resolveActorFromSheetScope(scope, app);
+    if (actor && actor.type !== "character") return;
+    if (actor?.id && !scope.dataset.actorId) scope.dataset.actorId = String(actor.id);
 
     if (!document.getElementById("dpad-mobile-styles")) {
       const style = document.createElement("style");
@@ -3810,6 +4959,16 @@ function injectSheetDpad(app, element) {
       const mount = scope.querySelector(".window-content") ?? scope;
       mount.appendChild(overlay);
     }
+    let dpadPingBtn = overlay.querySelector(".ss-dpad-open-ping");
+    if (!dpadPingBtn) {
+      dpadPingBtn = document.createElement("button");
+      dpadPingBtn.type = "button";
+      dpadPingBtn.className = "ss-dpad-open-ping";
+      dpadPingBtn.innerHTML = `<i class="fa-solid fa-crosshairs" inert></i><span>PING</span>`;
+      dpadPingBtn.setAttribute("aria-label", "Open Ping");
+      dpadPingBtn.setAttribute("title", "Open Ping");
+      overlay.appendChild(dpadPingBtn);
+    }
     let dpadLockNote = overlay.querySelector(".ss-dpad-lock-note");
     if (!dpadLockNote) {
       dpadLockNote = document.createElement("div");
@@ -3824,12 +4983,13 @@ function injectSheetDpad(app, element) {
       targetOverlay = document.createElement("div");
       targetOverlay.className = "ss-target-panel-overlay";
       targetOverlay.innerHTML = `
-        <section class="ss-target-panel" role="dialog" aria-label="Combat Targets">
-          <header class="ss-target-panel-header">Combat Targets</header>
+        <section class="ss-target-panel" role="dialog" aria-label="Targets/Ping">
+          <header class="ss-target-panel-header">Ping</header>
           <p class="ss-target-status">No active combat.</p>
           <div class="ss-target-list"></div>
           <footer class="ss-target-actions">
-            <button type="button" class="ss-target-apply">Apply Targets</button>
+            <button type="button" class="ss-target-map-ping">Ping On Map</button>
+            <button type="button" class="ss-target-apply">Apply</button>
             <button type="button" class="ss-target-close">Close</button>
           </footer>
         </section>
@@ -3841,8 +5001,18 @@ function injectSheetDpad(app, element) {
     const targetList = targetOverlay.querySelector(".ss-target-list");
     const targetStatus = targetOverlay.querySelector(".ss-target-status");
     const targetPanel = targetOverlay.querySelector(".ss-target-panel");
+    const targetHeader = targetOverlay.querySelector(".ss-target-panel-header");
+    const mapPingBtn = targetOverlay.querySelector(".ss-target-map-ping");
     const applyTargetsBtn = targetOverlay.querySelector(".ss-target-apply");
     const closeTargetsBtn = targetOverlay.querySelector(".ss-target-close");
+
+    const syncTargetOverlaySelectionFromLive = () => {
+      const sid = String(targetOverlay.dataset.ssSceneId || getCurrentSceneId() || "");
+      const refs = Array.from(getSsLiveTargetRefsForScene(sid));
+      targetOverlay.dataset.ssSelectionDirty = "0";
+      targetOverlay.dataset.ssSelectedTokens = refs.join(",");
+      refreshAllUseConfirmLiveTargetSummaries();
+    };
 
     const getCurrentSceneId = () => {
       return game.combat?.scene?.id
@@ -3851,34 +5021,189 @@ function injectSheetDpad(app, element) {
         ?? "";
     };
 
-    const getTargetRows = () => {
-      const combat = getActiveCombatForViewedScene();
-      if (!combat) return { sceneId: null, rows: [], reason: "No active combat in this scene." };
+    const getTargetTokenStateMeta = (tokenDoc) => {
+      const actorDoc = tokenDoc?.actor ?? game.actors?.get?.(tokenDoc?.actorId) ?? null;
+      const defeatedId = String(CONFIG?.specialStatusEffects?.DEFEATED ?? "").trim();
+      const actorStatuses = new Set(Array.from(actorDoc?.statuses ?? []).map((s) => String(s ?? "").trim()).filter(Boolean));
+      const tokenStatuses = new Set(Array.from(tokenDoc?.statuses ?? []).map((s) => String(s ?? "").trim()).filter(Boolean));
+      const hasDeadStatus = actorStatuses.has("dead")
+        || tokenStatuses.has("dead")
+        || (defeatedId && (actorStatuses.has(defeatedId) || tokenStatuses.has(defeatedId)));
+      const isDefeated = !!tokenDoc?.combatant?.defeated;
+      const dead = hasDeadStatus || isDefeated;
+      if (dead) return { dead: true, statusHtml: "" };
 
-      const sceneId = combat.scene?.id ?? combat.sceneId ?? game.scenes?.viewed?.id ?? "";
-      const rows = [];
-      const combatants = Array.from(combat.combatants?.contents ?? combat.combatants ?? []);
-
-      for (const combatant of combatants) {
-        const tokenDoc = combatant.token ?? null;
-        if (!tokenDoc?.id) continue;
-        if (tokenDoc.hidden) continue;
-
-        rows.push({
-          tokenId: tokenDoc.id,
-          name: tokenDoc.name ?? combatant.name ?? "Unknown",
-          img: tokenDoc.texture?.src ?? combatant.img ?? combatant.actor?.img ?? ""
-        });
+      const badges = [];
+      const hpValue = Number(actorDoc?.system?.attributes?.hp?.value ?? NaN);
+      const hpMax = Number(actorDoc?.system?.attributes?.hp?.max ?? NaN);
+      const bloodied = Number.isFinite(hpValue) && Number.isFinite(hpMax) && hpMax > 0 && hpValue > 0 && hpValue <= (hpMax / 2);
+      if (bloodied) {
+        badges.push(`<span class="ss-target-state-badge ss-target-state-badge-fa" title="Bloodied"><i class="fa-solid fa-droplet"></i></span>`);
       }
 
-      if (!rows.length) return { sceneId, rows, reason: "No visible combatants." };
-      return { sceneId, rows, reason: "" };
+      const effectIndex = new Map(
+        Array.from(CONFIG?.statusEffects ?? [])
+          .map((effect) => [String(effect?.id ?? "").trim(), effect])
+          .filter(([id]) => !!id)
+      );
+      const statusIds = Array.from(new Set([...actorStatuses, ...tokenStatuses]))
+        .filter((id) => id && id !== "dead" && (!defeatedId || id !== defeatedId));
+
+      for (const id of statusIds) {
+        const effect = effectIndex.get(id);
+        const icon = String(effect?.img ?? effect?.icon ?? "").trim();
+        if (!icon) continue;
+        const labelKey = String(effect?.name ?? effect?.label ?? id).trim();
+        const label = game.i18n?.has?.(labelKey) ? game.i18n.localize(labelKey) : labelKey;
+        badges.push(`<img class="ss-target-state-badge" src="${escapeHtml(icon)}" alt="${escapeHtml(label)}" title="${escapeHtml(label)}">`);
+      }
+
+      const statusHtml = badges.length ? `<span class="ss-target-states">${badges.join("")}</span>` : "";
+      return { dead: false, statusHtml };
+    };
+
+    const getTargetRows = () => {
+      const combat = getActiveCombatForViewedScene();
+      if (combat) {
+        const sceneId = combat.scene?.id ?? combat.sceneId ?? game.scenes?.viewed?.id ?? "";
+        const rows = [];
+        const combatants = Array.from(combat.combatants?.contents ?? combat.combatants ?? []);
+
+        for (const combatant of combatants) {
+          const tokenDoc = combatant.token ?? null;
+          if (!tokenDoc?.id) continue;
+          if (tokenDoc.hidden) continue;
+          if (combatant?.defeated || combatant?.isDefeated) continue;
+          const stateMeta = getTargetTokenStateMeta(tokenDoc);
+          if (stateMeta.dead) continue;
+
+          rows.push({
+            tokenId: tokenDoc.id,
+            name: tokenDoc.name ?? combatant.name ?? "Unknown",
+            img: tokenDoc.texture?.src ?? combatant.img ?? combatant.actor?.img ?? "",
+            stateHtml: stateMeta.statusHtml ?? "",
+            disabled: false
+          });
+        }
+
+        if (!rows.length) {
+          return {
+            sceneId,
+            rows,
+            reason: "No visible combatants.",
+            title: "Combat Ping",
+            inCombat: true
+          };
+        }
+        return { sceneId, rows, reason: "", title: "Combat Ping", inCombat: true };
+      }
+
+      const sceneId = game.scenes?.viewed?.id ?? "";
+      const sceneDoc = sceneId ? (game.scenes?.get?.(sceneId) ?? game.scenes?.viewed ?? null) : null;
+      const partyActorIds = new Set(
+        (game.actors?.filter?.((a) => a?.type === "character" && a.hasPlayerOwner) ?? [])
+          .map((a) => String(a?.id ?? ""))
+          .filter(Boolean)
+      );
+      const extraActorIds = new Set(
+        (game.actors?.filter?.((a) => {
+          try { return readSsTargetListInclude(a); }
+          catch (_err) { return false; }
+        }) ?? [])
+          .map((a) => String(a?.id ?? ""))
+          .filter(Boolean)
+      );
+      const allowedActorIds = new Set([...partyActorIds, ...extraActorIds]);
+      const sceneTokens = sceneDoc?.tokens
+        ? Array.from(sceneDoc.tokens?.contents ?? sceneDoc.tokens ?? [])
+        : [];
+      const rows = sceneTokens
+        .filter((tokenDoc) => {
+          if (!tokenDoc?.id) return false;
+          if (tokenDoc.hidden) return false;
+          if (getTargetTokenStateMeta(tokenDoc).dead) return false;
+          const actorId = String(tokenDoc.actorId ?? "");
+          return !!actorId && allowedActorIds.has(actorId);
+        })
+        .map((tokenDoc) => {
+          const actorDoc = tokenDoc.actor ?? game.actors?.get?.(tokenDoc.actorId) ?? null;
+          const actorId = String(tokenDoc.actorId ?? "");
+          const stateMeta = getTargetTokenStateMeta(tokenDoc);
+          return {
+            tokenId: tokenDoc.id ?? "",
+            actorId,
+            name: tokenDoc.name ?? actorDoc?.name ?? "Unknown",
+            img: tokenDoc.texture?.src ?? actorDoc?.img ?? "",
+            stateHtml: stateMeta.statusHtml ?? "",
+            disabled: false
+          };
+        })
+        .sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? "")));
+
+      if (!rows.length) {
+        return {
+          sceneId,
+          rows,
+          reason: "No visible party/allowed tokens in this scene.",
+          title: "Targets/Ping",
+          inCombat: false
+        };
+      }
+      return { sceneId, rows, reason: "", title: "Targets/Ping", inCombat: false };
     };
 
     const getSelectedTargetIds = () => {
       return Array.from(targetList?.querySelectorAll?.(".ss-target-check:checked") ?? [])
         .map((el) => el.value)
         .filter(Boolean);
+    };
+
+    const getActorTokenDocForScene = (sid) => {
+      const actorId = String(actor?.id ?? "");
+      if (!actorId) return null;
+      const sceneDoc = getSsSceneDoc(sid);
+      const sceneTokens = Array.from(sceneDoc?.tokens?.contents ?? sceneDoc?.tokens ?? []);
+      return sceneTokens.find((t) => String(t?.actorId ?? "") === actorId && !t?.hidden) ?? null;
+    };
+
+    const getTokenCenterForScene = (tokenDoc, sceneDoc) => {
+      if (!tokenDoc || !sceneDoc) return null;
+      const gridSize = Number(sceneDoc.grid?.size ?? canvas?.grid?.size ?? 100) || 100;
+      const wUnits = Number(tokenDoc.width ?? 1) || 1;
+      const hUnits = Number(tokenDoc.height ?? 1) || 1;
+      const x = Number(tokenDoc.x ?? 0) + ((wUnits * gridSize) / 2);
+      const y = Number(tokenDoc.y ?? 0) + ((hUnits * gridSize) / 2);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      return { x, y };
+    };
+
+    const getDistanceFeet = (sid, tokenId) => {
+      if (!tokenId) return null;
+      const sceneDoc = getSsSceneDoc(sid);
+      const sceneTokens = Array.from(sceneDoc?.tokens?.contents ?? sceneDoc?.tokens ?? []);
+      const fromToken = getActorTokenDocForScene(sid);
+      const toToken = sceneTokens.find((t) => String(t?.id ?? "") === String(tokenId)) ?? null;
+      if (!fromToken || !toToken) return "";
+
+      const from = getTokenCenterForScene(fromToken, sceneDoc);
+      const to = getTokenCenterForScene(toToken, sceneDoc);
+      if (!from || !to) return "";
+
+      const gridSize = Number(sceneDoc?.grid?.size ?? canvas?.grid?.size ?? 100) || 100;
+      const gridDistance = Number(sceneDoc?.grid?.distance ?? canvas?.scene?.grid?.distance ?? 5) || 5;
+      const dxCells = (to.x - from.x) / gridSize;
+      const dyCells = (to.y - from.y) / gridSize;
+      const rawDistanceFeet = Math.hypot(dxCells, dyCells) * gridDistance;
+      if (!Number.isFinite(rawDistanceFeet) || rawDistanceFeet < 0) return null;
+      const snapStep = gridDistance > 0 ? gridDistance : 5;
+      const snappedDistanceFeet = Math.max(0, Math.floor((rawDistanceFeet + 1e-6) / snapStep) * snapStep);
+      return snappedDistanceFeet;
+    };
+
+    const getDistanceFeetLabel = (sid, tokenId) => {
+      const distanceFeet = getDistanceFeet(sid, tokenId);
+      if (!Number.isFinite(distanceFeet)) return "";
+      return `${distanceFeet} ft`;
     };
 
     const syncTargetListScrollCue = () => {
@@ -3892,23 +5217,36 @@ function injectSheetDpad(app, element) {
     const renderTargetPanel = () => {
       if (!targetList || !targetStatus || !applyTargetsBtn) return;
 
-      const selected = new Set((targetOverlay.dataset.ssSelectedTokens ?? "")
+      const selectedFromUi = new Set((targetOverlay.dataset.ssSelectedTokens ?? "")
         .split(",")
         .filter(Boolean));
-      const { sceneId, rows, reason } = getTargetRows();
+      const { sceneId, rows, reason, title = "Ping", inCombat = false } = getTargetRows();
+      const forceTargeting = scope.dataset.ssTargetForce === "1";
+      const targetLimit = Number.parseInt(String(scope.dataset.ssTargetLimit ?? "0"), 10);
+      const rangeLimitFeet = Number.parseInt(String(scope.dataset.ssTargetRangeFeet ?? "0"), 10);
+      const allowTargetingActions = !!forceTargeting;
+      const selectedLive = getSsLiveTargetRefsForScene(sceneId);
+      const selectionDirty = targetOverlay.dataset.ssSelectionDirty === "1";
+      const selected = (!selectionDirty && selectedLive.size && allowTargetingActions) ? selectedLive : selectedFromUi;
       const turnAccess = getCombatTurnAccessForUser(game.user?.id ?? null, {
         combat: getActiveCombatForViewedScene()
       });
-      const targetLocked = !!turnAccess.locked;
+      const targetLocked = !!(allowTargetingActions && inCombat && turnAccess.locked);
 
       targetOverlay.dataset.ssSceneId = sceneId ?? "";
+      targetOverlay.dataset.ssSelectedTokens = allowTargetingActions ? Array.from(selected).join(",") : "";
       targetList.innerHTML = "";
+      if (targetHeader) targetHeader.textContent = title;
+      targetPanel?.setAttribute("aria-label", title);
       targetStatus.classList.remove("ss-turn-locked");
       targetPanel?.classList.remove("ss-turn-locked");
+      targetPanel?.classList.remove("ss-target-applied");
+      targetPanel?.classList.toggle("ss-ping-only", !allowTargetingActions);
       applyTargetsBtn.classList.remove("ss-turn-locked");
 
       if (!rows.length) {
-        targetStatus.textContent = reason || "No visible combatants.";
+        targetStatus.textContent = reason || "No targets available.";
+        applyTargetsBtn.hidden = true;
         applyTargetsBtn.disabled = true;
         applyTargetsBtn.title = "";
         requestAnimationFrame(syncTargetListScrollCue);
@@ -3921,28 +5259,55 @@ function injectSheetDpad(app, element) {
         applyTargetsBtn.classList.add("ss-turn-locked");
         const currentName = escapeHtml(turnAccess.currentCombatantName || "another combatant");
         targetStatus.innerHTML = `It is currently <strong class="ss-target-turn-name">${currentName}'s turn</strong>. You can ping now, but you cannot apply targets until your turn.`;
+      } else if (!allowTargetingActions) {
+        targetStatus.textContent = "Ping mode: select a row's Ping button to mark location. Target selection is available from Use Item.";
       } else {
-        targetStatus.textContent = "Select one or more combatants, then Apply Targets.";
+        const targetText = Number.isFinite(targetLimit) && targetLimit > 0 ? `up to ${targetLimit}` : "one or more";
+        const rangeText = Number.isFinite(rangeLimitFeet) && rangeLimitFeet > 0 ? ` within ${rangeLimitFeet} ft` : "";
+        targetStatus.textContent = `Select (${targetText}) target(s)${rangeText} and Apply.`;
       }
       rows.forEach((row) => {
+        const rowRef = row.tokenId ? `token:${row.tokenId}` : (row.actorId ? `actor:${row.actorId}` : "");
+        const isSelected = !!(rowRef && selected.has(rowRef));
+        const feetNum = row.tokenId ? getDistanceFeet(sceneId, row.tokenId) : null;
+        const feetLabel = Number.isFinite(feetNum) ? `${feetNum} ft` : "";
+        const outOfRange = !!(
+          allowTargetingActions
+          && Number.isFinite(rangeLimitFeet)
+          && rangeLimitFeet > 0
+          && Number.isFinite(feetNum)
+          && feetNum > rangeLimitFeet
+        );
+        const rowDisabled = !!(targetLocked || row.disabled || !rowRef || outOfRange);
         const item = document.createElement("div");
         item.className = "ss-target-row";
-        item.dataset.tokenId = row.tokenId;
+        if (isSelected) item.classList.add("ss-is-selected");
+        if (outOfRange) item.classList.add("ss-out-of-range");
+        item.dataset.tokenId = row.tokenId || "";
+        item.dataset.actorId = row.actorId || "";
         item.innerHTML = `
           <label class="ss-target-pick">
-            <input type="checkbox" class="ss-target-check" value="${row.tokenId}" ${selected.has(row.tokenId) ? "checked" : ""} ${targetLocked ? "disabled" : ""}>
+            ${allowTargetingActions ? `<input type="checkbox" class="ss-target-check" value="${rowRef}" ${isSelected ? "checked" : ""} ${rowDisabled ? "disabled" : ""}>` : ""}
             <span class="ss-target-avatar"${row.img ? ` style="background-image:url('${row.img}')"` : ""}></span>
-            <span class="ss-target-name">${row.name}</span>
+            <span class="ss-target-name">
+              <span class="ss-target-name-main">${row.name}</span>
+              ${row.stateHtml || ""}
+              ${feetLabel ? `<small class="ss-target-distance">${escapeHtml(feetLabel)}${outOfRange ? " - out of range" : ""}</small>` : ""}
+            </span>
           </label>
-          <button type="button" class="ss-target-ping">Ping</button>
+          <button type="button" class="ss-target-ping" ${(row.disabled || !rowRef) ? "disabled" : ""}>Ping</button>
         `;
         targetList.appendChild(item);
       });
 
-      applyTargetsBtn.disabled = targetLocked;
-      applyTargetsBtn.title = targetLocked ? "You can target only on your turn." : "";
+      applyTargetsBtn.hidden = !allowTargetingActions;
+      applyTargetsBtn.disabled = !allowTargetingActions || targetLocked;
+      applyTargetsBtn.title = targetLocked
+        ? "You can target only on your turn."
+        : (!allowTargetingActions ? "" : "Apply selected targets");
       requestAnimationFrame(syncTargetListScrollCue);
     };
+    scope.__ssRenderTargetPanel = renderTargetPanel;
 
     let bottomNavMeasureRaf = 0;
     let bottomNavMeasureTimeout = 0;
@@ -3988,13 +5353,14 @@ function injectSheetDpad(app, element) {
       });
     };
 
-    const updateBottomNavLayout = (enabled, canTarget) => {
-      tabsNav.style.setProperty("grid-template-columns", "repeat(2, minmax(0, 1fr))", "important");
+    const updateBottomNavLayout = (enabled, canTarget, hasLogout = true) => {
+      const navColumns = 3;
+      tabsNav.style.setProperty("grid-template-columns", `repeat(${navColumns}, minmax(0, 1fr))`, "important");
       const { narrowPhoneLayout } = getBottomNavLayoutFlags();
 
       // Deterministic expected rows for quick fallback.
-      const expectedCount = 4 + (enabled ? 1 : 0) + (canTarget ? 1 : 0);
-      const rows = Math.max(2, Math.ceil(expectedCount / 2));
+      const expectedCount = 4 + (enabled ? 1 : 0) + (hasLogout ? 1 : 0);
+      const rows = Math.max(2, Math.ceil(expectedCount / navColumns));
       const fallbackRowHeightRem = narrowPhoneLayout ? 2.72 : 3.05;
       const fallbackGapRem = narrowPhoneLayout ? 0.2 : 0.32;
       const fallbackChromeRem = narrowPhoneLayout ? 0.55 : 0.8;
@@ -4060,15 +5426,17 @@ function injectSheetDpad(app, element) {
       tabsNav.appendChild(dpadTab);
     }
 
-    let targetTab = tabsNav.querySelector(".ss-target-fs-toggle");
-    if (!targetTab) {
-      targetTab = document.createElement("a");
-      targetTab.href = "#";
-      targetTab.className = "item control ss-target-fs-toggle";
-      targetTab.setAttribute("aria-label", "Targets");
-      targetTab.setAttribute("title", "Combat Targets");
-      targetTab.innerHTML = `<i class="fa-solid fa-crosshairs" inert></i><span class="ss-tab-label">Targets</span>`;
-      tabsNav.appendChild(targetTab);
+    tabsNav.querySelectorAll(".ss-target-fs-toggle").forEach((el) => el.remove());
+
+    let logoutTab = tabsNav.querySelector(".ss-logout-fs-toggle");
+    if (!logoutTab) {
+      logoutTab = document.createElement("a");
+      logoutTab.href = "#";
+      logoutTab.className = "item control ss-logout-fs-toggle ss-nav-tab ss-tab-logout";
+      logoutTab.setAttribute("aria-label", "Logout");
+      logoutTab.setAttribute("title", "Logout");
+      logoutTab.innerHTML = `<i class="fa-solid fa-sign-out-alt" inert></i><span class="ss-tab-label">Logout</span>`;
+      tabsNav.appendChild(logoutTab);
     }
 
     decorateSheetSidekickTabs(scope);
@@ -4079,8 +5447,8 @@ function injectSheetDpad(app, element) {
         const dataTab = String(el.dataset?.tab ?? "");
         const isBase = baseTabSet.has(dataTab);
         const isDpad = el === dpadTab || el.classList.contains("ss-dpad-fs-toggle");
-        const isTarget = el === targetTab || el.classList.contains("ss-target-fs-toggle");
-        const visible = isBase || (isDpad && enabled) || (isTarget && canTarget);
+        const isLogout = el === logoutTab || el.classList.contains("ss-logout-fs-toggle");
+        const visible = isBase || (isDpad && enabled) || isLogout;
         if (visible) el.style.removeProperty("display");
         else el.style.setProperty("display", "none", "important");
       });
@@ -4090,19 +5458,25 @@ function injectSheetDpad(app, element) {
       const blockedTabs = ["effects", "biography", "specialTraits"];
       tabsNav.querySelectorAll(blockedTabs.map((t) => `a[data-tab='${t}']`).join(","))
         .forEach((el) => el.remove());
+      // Keep logout consistently as the final bottom-nav control.
+      if (logoutTab?.parentElement === tabsNav) tabsNav.appendChild(logoutTab);
 
       const enabled = isDpadEnabledByGm();
-      const canTarget = enabled && !!getActiveCombatForViewedScene();
+      const canTarget = enabled;
       if (!enabled) {
         scope.classList.remove("ss-dpad-fs-open");
       }
       if (!canTarget) {
         scope.classList.remove("ss-target-panel-open");
+        restoreSsSheetZIndex(scope);
       }
       scope.classList.toggle("ss-dpad-available", enabled);
       scope.classList.toggle("ss-target-available", canTarget);
       dpadTab.classList.toggle("ss-dpad-hidden", !enabled);
-      targetTab.classList.toggle("ss-dpad-hidden", !canTarget);
+      if (dpadPingBtn instanceof HTMLButtonElement) {
+        dpadPingBtn.disabled = !canTarget;
+        dpadPingBtn.title = canTarget ? "Open Ping" : "Ping unavailable";
+      }
 
       const turnAccess = getCombatTurnAccessForUser(game.user?.id ?? null, {
         combat: getActiveCombatForViewedScene()
@@ -4128,18 +5502,38 @@ function injectSheetDpad(app, element) {
       });
 
       dpadTab.classList.remove("active");
-      targetTab.classList.remove("active");
+      logoutTab.classList.remove("active");
       dpadTab.setAttribute("aria-pressed", String(enabled && scope.classList.contains("ss-dpad-fs-open")));
-      targetTab.setAttribute("aria-pressed", String(canTarget && scope.classList.contains("ss-target-panel-open")));
+      logoutTab.setAttribute("aria-pressed", "false");
       if (canTarget && scope.classList.contains("ss-target-panel-open")) renderTargetPanel();
       enforceBottomNavVisibility(enabled, canTarget);
 
       const hasVisibleControlTab = !dpadTab.classList.contains("ss-dpad-hidden")
-        || !targetTab.classList.contains("ss-dpad-hidden");
+        || (logoutTab instanceof HTMLElement && getComputedStyle(logoutTab).display !== "none");
       scope.classList.toggle("ss-dpad-available", hasVisibleControlTab);
-      updateBottomNavLayout(enabled, canTarget);
+      updateBottomNavLayout(enabled, canTarget, true);
       queueMeasuredBottomNavOffsets();
     };
+
+    const openTargetPanel = ({ openFromUse = false } = {}) => {
+      const enabled = isDpadEnabledByGm();
+      const canTarget = enabled;
+      if (!canTarget) return false;
+      if (!openFromUse) {
+        scope.dataset.ssTargetForce = "0";
+        scope.dataset.ssTargetLimit = "0";
+        scope.dataset.ssTargetRangeFeet = "0";
+      }
+      bringSsSheetToFront(scope);
+      scope.classList.remove("ss-dpad-fs-open");
+      targetOverlay.dataset.ssSelectionDirty = "0";
+      targetOverlay.dataset.ssSelectedTokens = "";
+      renderTargetPanel();
+      scope.classList.add("ss-target-panel-open");
+      sync();
+      return true;
+    };
+    scope.__ssOpenTargetPanel = openTargetPanel;
 
     if (dpadTab.dataset.ssBound !== "1") {
       dpadTab.dataset.ssBound = "1";
@@ -4147,22 +5541,31 @@ function injectSheetDpad(app, element) {
         ev.preventDefault();
         ev.stopPropagation();
         scope.classList.remove("ss-target-panel-open");
+        restoreSsSheetZIndex(scope);
         scope.classList.toggle("ss-dpad-fs-open");
         sync();
       });
     }
 
-    if (targetTab.dataset.ssBound !== "1") {
-      targetTab.dataset.ssBound = "1";
-      targetTab.addEventListener("click", (ev) => {
+    if (dpadPingBtn instanceof HTMLButtonElement && dpadPingBtn.dataset.ssBound !== "1") {
+      dpadPingBtn.dataset.ssBound = "1";
+      dpadPingBtn.addEventListener("click", (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
-        if (targetTab.classList.contains("ss-dpad-hidden")) return;
-        const nextOpen = !scope.classList.contains("ss-target-panel-open");
-        scope.classList.remove("ss-dpad-fs-open");
-        if (nextOpen) renderTargetPanel();
-        scope.classList.toggle("ss-target-panel-open", nextOpen);
-        sync();
+        openTargetPanel({ openFromUse: false });
+      });
+    }
+
+    if (logoutTab.dataset.ssBound !== "1") {
+      logoutTab.dataset.ssBound = "1";
+      logoutTab.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        try {
+          ui?.menu?.items?.logout?.onClick?.();
+        } catch (_err) {
+          foundry.utils.debouncedReload?.();
+        }
       });
     }
 
@@ -4172,9 +5575,10 @@ function injectSheetDpad(app, element) {
         const tab = ev.target?.closest?.("a.item, a.control");
         if (!tab) return;
         if (tab.classList.contains("ss-dpad-fs-toggle")) return;
-        if (tab.classList.contains("ss-target-fs-toggle")) return;
+        if (tab.classList.contains("ss-logout-fs-toggle")) return;
         scope.classList.remove("ss-dpad-fs-open");
         scope.classList.remove("ss-target-panel-open");
+        restoreSsSheetZIndex(scope);
         sync();
       });
     }
@@ -4190,10 +5594,13 @@ function injectSheetDpad(app, element) {
 
     if (targetOverlay.dataset.ssBound !== "1") {
       targetOverlay.dataset.ssBound = "1";
+      targetOverlay.addEventListener("pointerdown", () => bringSsSheetToFront(scope), true);
 
       targetOverlay.addEventListener("click", (ev) => {
         if (ev.target !== targetOverlay) return;
+        syncTargetOverlaySelectionFromLive();
         scope.classList.remove("ss-target-panel-open");
+        restoreSsSheetZIndex(scope);
         sync();
       });
 
@@ -4205,37 +5612,65 @@ function injectSheetDpad(app, element) {
 
         const row = pingBtn.closest(".ss-target-row");
         const tokenId = row?.dataset?.tokenId;
+        const actorId = row?.dataset?.actorId;
         const sceneId = targetOverlay.dataset.ssSceneId || getCurrentSceneId();
-        if (!tokenId || !sceneId) return;
+        const targetRef = tokenId ? `token:${tokenId}` : (actorId ? `actor:${actorId}` : "");
+        if (!targetRef) return;
 
         const ts = Date.now();
         const sent = sendCommandToGmSocket("ssTarget", {
           mode: "ping",
           sceneId,
-          payload: tokenId,
+          payload: targetRef,
           timestamp: ts,
           userId: game.user?.id ?? null
         });
         if (!sent) {
-          sendCommandToGmWhisper(`!ss-target ping ${sceneId} ${tokenId} ${ts} ${game.user.id}`, { includeSelf: true });
+          sendCommandToGmWhisper(`!ss-target ping ${sceneId} ${targetRef} ${ts} ${game.user.id}`, { includeSelf: true });
         }
       });
 
-      targetList?.addEventListener("change", () => {
+      targetList?.addEventListener("change", (ev) => {
+        const changed = ev?.target instanceof HTMLElement ? ev.target.closest(".ss-target-check") : null;
+        const targetLimit = Number.parseInt(String(scope.dataset.ssTargetLimit ?? "0"), 10);
+        if (changed instanceof HTMLInputElement && changed.checked && Number.isFinite(targetLimit) && targetLimit > 0) {
+          const checked = Array.from(targetList.querySelectorAll(".ss-target-check:checked"));
+          if (checked.length > targetLimit) {
+            changed.checked = false;
+            ui.notifications?.warn?.(`You can select up to ${targetLimit} target${targetLimit === 1 ? "" : "s"} for this item.`);
+          }
+        }
+        targetOverlay.dataset.ssSelectionDirty = "1";
         targetOverlay.dataset.ssSelectedTokens = getSelectedTargetIds().join(",");
+        targetList.querySelectorAll(".ss-target-row").forEach((rowEl) => {
+          const check = rowEl.querySelector(".ss-target-check");
+          rowEl.classList.toggle("ss-is-selected", !!check?.checked);
+        });
       });
       targetList?.addEventListener("scroll", () => {
         syncTargetListScrollCue();
       }, { passive: true });
 
       closeTargetsBtn?.addEventListener("click", () => {
+        syncTargetOverlaySelectionFromLive();
         scope.classList.remove("ss-target-panel-open");
+        restoreSsSheetZIndex(scope);
         sync();
+      });
+
+      mapPingBtn?.addEventListener("click", () => {
+        const sceneId = targetOverlay.dataset.ssSceneId || getCurrentSceneId();
+        requestSsMapPingSnapshot({
+          actorName: actor?.name ?? "",
+          sceneId
+        });
       });
 
       applyTargetsBtn?.addEventListener("click", () => {
         const sceneId = targetOverlay.dataset.ssSceneId || getCurrentSceneId();
         if (!sceneId) return;
+        const forceTargeting = scope.dataset.ssTargetForce === "1";
+        if (!forceTargeting) return;
         const turnAccess = getCombatTurnAccessForUser(game.user?.id ?? null, {
           combat: getActiveCombatForViewedScene()
         });
@@ -4244,8 +5679,15 @@ function injectSheetDpad(app, element) {
           renderTargetPanel();
           return;
         }
-        const tokenIds = getSelectedTargetIds();
-        targetOverlay.dataset.ssSelectedTokens = tokenIds.join(",");
+        const selectedRefs = getSelectedTargetIds();
+        targetOverlay.dataset.ssSelectionDirty = "0";
+        targetOverlay.dataset.ssSelectedTokens = selectedRefs.join(",");
+        const tokenIds = selectedRefs;
+        const proxyTokenIds = selectedRefs
+          .map((ref) => String(ref ?? ""))
+          .map((ref) => (ref.includes(":") ? ref.slice(ref.indexOf(":") + 1).trim() : ref.trim()))
+          .filter(Boolean);
+        setProxyTargetsForUser(game.user?.id, sceneId, proxyTokenIds);
 
         const payload = tokenIds.length ? tokenIds.join(",") : "-";
         const ts = Date.now();
@@ -4259,13 +5701,30 @@ function injectSheetDpad(app, element) {
         if (!sent) {
           sendCommandToGmWhisper(`!ss-target set ${sceneId} ${payload} ${ts} ${game.user.id}`, { includeSelf: true });
         }
+        targetPanel?.classList.add("ss-target-applied");
+        targetStatus.textContent = tokenIds.length
+          ? `Applied ${tokenIds.length} target${tokenIds.length === 1 ? "" : "s"}.`
+          : "Targets cleared.";
+        window.setTimeout(() => {
+          if (!document.body.contains(targetOverlay)) return;
+          targetPanel?.classList.remove("ss-target-applied");
+          renderTargetPanel();
+        }, 1800);
+        scope.classList.remove("ss-target-panel-open");
+        scope.dataset.ssTargetForce = "0";
+        scope.dataset.ssTargetLimit = "0";
+        scope.dataset.ssTargetRangeFeet = "0";
+        restoreSsSheetZIndex(scope);
+        sync();
       });
     }
 
     sync();
     app.once?.("close", () => {
+      restoreSsSheetZIndex(scope);
       overlay.remove();
       targetOverlay?.remove();
+      delete scope.__ssRenderTargetPanel;
       if (ssDpadNavObserverByForm.has(scope)) {
         ssDpadNavObserverByForm.get(scope)?.disconnect();
         ssDpadNavObserverByForm.delete(scope);
@@ -4302,7 +5761,15 @@ function refreshSheetSidekickForms() {
   if (game.user?.isGM) return;
   const forms = document.querySelectorAll(SS_SHEET_FORM_SELECTOR);
   const enabled = isDpadEnabledByGm();
+  const restoreList = [];
   forms.forEach((form) => {
+    const actor = resolveActorFromSheetScope(form, null);
+    if (actor) {
+      if (!form.dataset.actorId) form.dataset.actorId = String(actor.id ?? "");
+      saveSheetScroll(form, actor);
+      restoreList.push({ form, actor });
+    }
+
     if (!enabled) {
       form.classList.remove("ss-dpad-available");
       form.classList.remove("ss-dpad-fs-open");
@@ -4310,20 +5777,26 @@ function refreshSheetSidekickForms() {
       form.classList.remove("ss-target-panel-open");
       form.style.setProperty("--ss-bottom-nav-pad", "calc(6.2rem + env(safe-area-inset-bottom, 0px))");
       const nav = form.querySelector("nav.tabs-right, nav.tabs");
-      nav?.style?.setProperty?.("grid-template-columns", "repeat(2, minmax(0, 1fr))", "important");
+      nav?.style?.setProperty?.("grid-template-columns", "repeat(3, minmax(0, 1fr))", "important");
     }
 
     try {
-      injectSheetDpad({ actor: null, once: () => {} }, form);
+      injectSheetDpad({ actor, once: () => {} }, form);
     } catch (_err) {
       // noop
     }
   });
+  if (restoreList.length) {
+    requestAnimationFrame(() => {
+      restoreList.forEach(({ form, actor }) => restoreSheetScroll(form, actor));
+    });
+  }
 }
 globalThis.ssRefreshSheetSidekickForms = refreshSheetSidekickForms;
 
 function queueSheetSidekickFormRefresh(delayMs = 120) {
   if (game.user?.isGM) return;
+  saveAllOpenSheetScrolls();
   if (ssFormRefreshState.timer) window.clearTimeout(ssFormRefreshState.timer);
   ssFormRefreshState.timer = window.setTimeout(() => {
     ssFormRefreshState.timer = null;
@@ -4340,7 +5813,7 @@ Hooks.on("ready", () => {
 
   const run = () => {
     const forms = document.querySelectorAll(SS_SHEET_FORM_SELECTOR);
-    forms.forEach((form) => injectSheetDpad({ actor: null, once: () => {} }, form));
+    forms.forEach((form) => injectSheetDpad({ actor: resolveActorFromSheetScope(form, null), once: () => {} }, form));
   };
 
   run();
@@ -4374,24 +5847,6 @@ Hooks.on("ready", () => {
     globalThis.__SS_DPAD_FORM_OBSERVER__ = obs;
   }
 
-  if (!globalThis.__SS_DPAD_FLAG_POLL__) {
-    let last = null;
-    globalThis.__SS_DPAD_FLAG_POLL__ = window.setInterval(() => {
-      if (game.user?.isGM) return;
-      const next = isDpadEnabledByGm();
-      if (last === null) {
-        last = next;
-        setDpadEnabledOverride(next);
-        refreshSheetSidekickForms();
-        queueSheetSidekickFormRefresh(160);
-        return;
-      }
-      if (next === last) return;
-      last = next;
-      setDpadEnabledOverride(next);
-      refreshSheetSidekickForms();
-    }, 1500);
-  }
 });
 
 // React to GM toggling DPAD and/or refresh ping by re-injecting and rerendering Sheet Sidekick forms.
@@ -4414,7 +5869,7 @@ Hooks.on("updateUser", (user, changed) => {
           form.classList.remove("ss-target-panel-open");
           form.style.setProperty("--ss-bottom-nav-pad", "calc(6.2rem + env(safe-area-inset-bottom, 0px))");
           const nav = form.querySelector("nav.tabs-right, nav.tabs");
-          nav?.style?.setProperty?.("grid-template-columns", "repeat(2, minmax(0, 1fr))", "important");
+          nav?.style?.setProperty?.("grid-template-columns", "repeat(3, minmax(0, 1fr))", "important");
         });
       }
     }
@@ -4422,6 +5877,39 @@ Hooks.on("updateUser", (user, changed) => {
 
   refreshSheetSidekickForms();
   queueSheetSidekickFormRefresh(180);
+});
+
+// Keep player-side targeting UIs in sync when user target activity changes.
+Hooks.on("updateUser", (_user, changed) => {
+  if (game.user?.isGM) return;
+  const hasTargetsChange =
+    foundry.utils.hasProperty(changed, "targets")
+    || foundry.utils.hasProperty(changed, "activity.targets")
+    || Array.isArray(changed?.targets);
+  if (!hasTargetsChange) return;
+
+  syncOpenTargetPanelsWithLiveTargets();
+  refreshAllUseConfirmLiveTargetSummaries();
+});
+
+// GM pushes lightweight target-sync events to players when GM targets change.
+Hooks.on("updateUser", (user, changed) => {
+  if (!game.user?.isGM) return;
+  if (String(user?.id ?? "") !== String(game.user?.id ?? "")) return;
+  const hasTargetsChange =
+    foundry.utils.hasProperty(changed, "targets")
+    || foundry.utils.hasProperty(changed, "activity.targets")
+    || Array.isArray(changed?.targets);
+  if (!hasTargetsChange) return;
+  const sceneId = String(
+    user?.activity?.scene
+    ?? user?.activity?.sceneId
+    ?? game.combat?.scene?.id
+    ?? game.combat?.sceneId
+    ?? game.scenes?.viewed?.id
+    ?? ""
+  ).trim();
+  queueSsTargetUiSyncFromGm(sceneId);
 });
 
 Hooks.on("createCombat", () => {
@@ -4445,34 +5933,202 @@ Hooks.on("updateCombat", () => {
   queueSheetSidekickFormRefresh();
 });
 
+Hooks.on("preUpdateActor", (actor) => {
+  if (game.user?.isGM) return;
+  const actorId = String(actor?.id ?? "");
+  if (!actorId) return;
+  recordSsScrollTrace("preUpdateActor", { actorId });
+  saveOpenSheetScrollForActor(actorId);
+});
+
+Hooks.on("updateActor", (actor) => {
+  if (game.user?.isGM) return;
+  const actorId = String(actor?.id ?? "");
+  if (!actorId) return;
+  recordSsScrollTrace("updateActor", { actorId });
+  queueOpenSheetScrollRestore(actorId, 20);
+});
+
+Hooks.on("updateActor", (actor, changed) => {
+  const changedFlag =
+    foundry.utils.hasProperty(changed, `flags.${SS_MODULE_ID}.${SS_TARGET_LIST_FLAG_KEY}`)
+    || foundry.utils.hasProperty(changed, "flags.custom-js.ssTargetListInclude");
+  if (!changedFlag) return;
+  queueSheetSidekickFormRefresh(80);
+});
+
+Hooks.on("preUpdateItem", (item) => {
+  if (game.user?.isGM) return;
+  const actorId = String(item?.parent?.id ?? "");
+  if (!actorId) return;
+  recordSsScrollTrace("preUpdateItem", {
+    actorId,
+    itemId: String(item?.id ?? ""),
+    itemName: String(item?.name ?? "")
+  });
+  saveOpenSheetScrollForActor(actorId);
+});
+
+Hooks.on("preCreateItem", (item, data) => {
+  if (game.user?.isGM) return;
+  const actorId = String(item?.parent?.id ?? data?.parent?.id ?? data?.parentId ?? "");
+  if (!actorId) return;
+  recordSsScrollTrace("preCreateItem", {
+    actorId,
+    itemId: String(item?.id ?? data?._id ?? ""),
+    itemName: String(item?.name ?? data?.name ?? "")
+  });
+  saveOpenSheetScrollForActor(actorId);
+});
+
+Hooks.on("preDeleteItem", (item) => {
+  if (game.user?.isGM) return;
+  const actorId = String(item?.parent?.id ?? "");
+  if (!actorId) return;
+  recordSsScrollTrace("preDeleteItem", {
+    actorId,
+    itemId: String(item?.id ?? ""),
+    itemName: String(item?.name ?? "")
+  });
+  saveOpenSheetScrollForActor(actorId);
+});
+
+Hooks.on("updateItem", (item, changed) => {
+  if (game.user?.isGM) return;
+  const actorId = String(item?.parent?.id ?? "");
+  if (!actorId) return;
+  const itemMutationLikely =
+    Object.keys(changed ?? {}).length > 0
+    || foundry.utils.hasProperty(changed, "sort")
+    || foundry.utils.hasProperty(changed, "system.equipped")
+    || foundry.utils.hasProperty(changed, "system.quantity")
+    || foundry.utils.hasProperty(changed, "system.preparation.prepared")
+    || foundry.utils.hasProperty(changed, "system.preparation.mode");
+  if (!itemMutationLikely) return;
+  recordSsScrollTrace("updateItem", {
+    actorId,
+    itemId: String(item?.id ?? ""),
+    itemName: String(item?.name ?? ""),
+    changedKeys: Object.keys(changed ?? {})
+  });
+  queueOpenSheetScrollRestore(actorId, 20);
+});
+
+Hooks.on("renderTokenHUD", (app, html) => {
+  if (!game.user?.isGM) return;
+  const root = html instanceof HTMLElement ? html : html?.[0];
+  if (!(root instanceof HTMLElement)) return;
+
+  const token = app?.object ?? app?.token ?? canvas?.tokens?.hud?.object ?? null;
+  const tokenDoc = token?.document ?? token ?? null;
+  const actorId = String(tokenDoc?.actorId ?? token?.actor?.id ?? "");
+  if (!actorId) return;
+  const actor = token?.actor ?? tokenDoc?.actor ?? game.actors?.get?.(actorId) ?? null;
+  const worldActor = game.actors?.get?.(actorId) ?? actor ?? null;
+  if (!worldActor) return;
+
+  let btn = root.querySelector(".control-icon.ss-targetlist-toggle");
+  if (!(btn instanceof HTMLElement)) {
+    const $btn = $(`
+      <div class="control-icon ss-targetlist-toggle" role="button">
+        <i class="fa-solid fa-crosshairs"></i>
+      </div>
+    `);
+    const rightCol = root.querySelector(".col.right");
+    if (rightCol) rightCol.prepend($btn[0]);
+    else root.append($btn[0]);
+    btn = $btn[0];
+  }
+  if (!(btn instanceof HTMLElement)) return;
+
+  const sync = () => {
+    const enabled = readSsTargetListInclude(worldActor);
+    btn.classList.toggle("active", enabled);
+    const icon = btn.querySelector("i");
+    if (icon instanceof HTMLElement) icon.className = enabled ? "fa-solid fa-user-check" : "fa-solid fa-user-plus";
+    const hint = enabled
+      ? "Included in Sheet Sidekick out-of-combat Targets/Ping list (click to remove)"
+      : "Add this actor to Sheet Sidekick out-of-combat Targets/Ping list";
+    btn.setAttribute("title", hint);
+    btn.setAttribute("aria-label", hint);
+    btn.setAttribute("data-tooltip", hint);
+    btn.dataset.tooltip = hint;
+  };
+  sync();
+
+  btn.onclick = async (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const enabled = readSsTargetListInclude(worldActor);
+    await writeSsTargetListInclude(worldActor, !enabled);
+    sync();
+  };
+});
+
 async function executeSsTargetCommand({ mode, sceneId, payload, timestamp, userId }) {
   if (!game.user?.isGM) return;
   if (!mode) return;
   if (Number.isFinite(timestamp) && (Date.now() - timestamp > 20000)) return;
 
-  const combat = game.combat;
-  if (!combat || !(combat.combatants?.size > 0)) return;
-  const combatSceneId = combat.scene?.id ?? combat.sceneId ?? null;
+  const combat = getActiveCombatForViewedScene();
+  const combatSceneId = combat?.scene?.id ?? combat?.sceneId ?? null;
   const effectiveSceneId = sceneId || combatSceneId || game.scenes?.viewed?.id || null;
   const sceneDoc = effectiveSceneId ? game.scenes?.get?.(effectiveSceneId) ?? null : null;
 
-  const getCombatTokenDoc = (tokenId) => {
-    const combatant = combat.combatants.find((c) => c.tokenId === tokenId);
-    if (combatant?.token) return combatant.token;
+  const getSceneTokenDoc = (tokenId) => {
+    if (!tokenId) return null;
     if (sceneDoc?.tokens?.get) return sceneDoc.tokens.get(tokenId) ?? null;
+    const sceneTokens = Array.from(sceneDoc?.tokens?.contents ?? sceneDoc?.tokens ?? []);
+    return sceneTokens.find((t) => String(t?.id ?? "") === String(tokenId)) ?? null;
     return null;
   };
 
-  const isTargetableCombatToken = (tokenId) => {
-    const tokenDoc = getCombatTokenDoc(tokenId);
+  const getCombatTokenDoc = (tokenId) => {
+    const combatant = combat?.combatants?.find?.((c) => c.tokenId === tokenId);
+    if (combatant?.token) return combatant.token;
+    return getSceneTokenDoc(tokenId);
+  };
+
+  const isTargetableToken = (tokenId) => {
+    const tokenDoc = (combat && (combat.combatants?.size > 0))
+      ? getCombatTokenDoc(tokenId)
+      : getSceneTokenDoc(tokenId);
     if (!tokenDoc?.id) return false;
     if (tokenDoc.hidden) return false;
     return true;
   };
 
+  const resolveTokenIdFromReference = (ref) => {
+    const raw = String(ref ?? "").trim();
+    if (!raw) return "";
+
+    let mode = "token";
+    let value = raw;
+    if (raw.includes(":")) {
+      const idx = raw.indexOf(":");
+      mode = raw.slice(0, idx).toLowerCase();
+      value = raw.slice(idx + 1).trim();
+    }
+    if (!value) return "";
+
+    if (mode === "token" || mode === "t") {
+      return isTargetableToken(value) ? value : "";
+    }
+
+    if (mode === "actor" || mode === "a") {
+      const sceneTokens = Array.from(sceneDoc?.tokens?.contents ?? sceneDoc?.tokens ?? []);
+      const tokenDoc = sceneTokens.find((t) => String(t?.actorId ?? "") === value && !t.hidden)
+        ?? null;
+      const tokenId = String(tokenDoc?.id ?? "");
+      return tokenId && isTargetableToken(tokenId) ? tokenId : "";
+    }
+
+    return isTargetableToken(raw) ? raw : "";
+  };
+
   if (mode === "ping") {
-    const tokenId = payload;
-    if (!tokenId || !isTargetableCombatToken(tokenId)) return;
+    const tokenId = resolveTokenIdFromReference(payload);
+    if (!tokenId || !isTargetableToken(tokenId)) return;
 
     const token = canvas?.tokens?.get(tokenId) ?? null;
     if (!token || !canvas?.ready) return;
@@ -4480,19 +6136,39 @@ async function executeSsTargetCommand({ mode, sceneId, payload, timestamp, userI
     const x = token.center?.x ?? (token.document.x + ((token.w ?? canvas.grid.size) / 2));
     const y = token.center?.y ?? (token.document.y + ((token.h ?? canvas.grid.size) / 2));
 
-    try { canvas.ping?.({ x, y }); } catch (_err) { /* noop */ }
-    try { canvas.controls?.drawPing?.({ x, y }, { scene: sceneId, user: game.user.id }); } catch (_err) { /* noop */ }
-    try { canvas.animatePan?.({ x, y, duration: 350 }); } catch (_err) { /* noop */ }
+    const pingUserId = String(userId ?? "") || game.user.id;
+    const pingSceneId = String(effectiveSceneId ?? sceneId ?? canvas.scene?.id ?? "");
+    const pingUser = game.users?.get?.(pingUserId) ?? null;
+    const pingColor = pingUser?.color?.css ?? pingUser?.color ?? null;
+    const pingZoom = Number(canvas?.stage?.scale?.x ?? canvas?.stage?.worldTransform?.a ?? 1) || 1;
+    const broadcasted = await broadcastSsPingForAllClients({
+      x,
+      y,
+      sceneId: pingSceneId,
+      zoom: pingZoom,
+      style: "pulse",
+      pull: false
+    });
+    if (!broadcasted) {
+      drawSsPingLocallyForGm({ x, y, sceneId: pingSceneId, userId: pingUserId, color: pingColor });
+    } else {
+      // GM sender often does not receive its own broadcast ping render; draw locally too.
+      drawSsPingLocallyForGm({ x, y, sceneId: pingSceneId, userId: pingUserId, color: pingColor });
+    }
     return;
   }
 
   if (mode === "set") {
     const targetUserId = String(userId ?? "");
     if (!targetUserId) return;
-    if (getCombatTurnAccessForUser(targetUserId, { combat }).locked) return;
+    if (combat && getCombatTurnAccessForUser(targetUserId, { combat }).locked) return;
 
     const requested = (payload === "-" ? [] : String(payload).split(",").filter(Boolean));
-    const tokenIds = requested.filter((id) => isTargetableCombatToken(id));
+    const tokenIds = Array.from(new Set(
+      requested
+        .map((ref) => resolveTokenIdFromReference(ref))
+        .filter((id) => isTargetableToken(id))
+    ));
     setProxyTargetsForUser(targetUserId, effectiveSceneId, tokenIds);
 
     try {
@@ -4504,14 +6180,580 @@ async function executeSsTargetCommand({ mode, sceneId, payload, timestamp, userI
     } catch (err) {
       console.warn("Target apply failed:", err);
     }
+    queueSsTargetUiSyncFromGm(effectiveSceneId ?? sceneId ?? "");
+  }
+}
+
+async function broadcastSsPingForAllClients({ x, y, sceneId, zoom, style = "pulse", pull = false }) {
+  if (!game.user?.isGM) return false;
+  const px = Number(x);
+  const py = Number(y);
+  if (!Number.isFinite(px) || !Number.isFinite(py)) return false;
+
+  const activity = {
+    cursor: { x: px, y: py },
+    ping: {
+      scene: String(sceneId ?? "") || (game.scenes?.viewed?.id ?? canvas?.scene?.id ?? ""),
+      pull: !!pull,
+      style: String(style || "pulse") || "pulse"
+    }
+  };
+  const z = Number(zoom);
+  if (Number.isFinite(z) && z > 0) activity.ping.zoom = z;
+
+  try {
+    await game.user?.broadcastActivity?.(activity);
+    return true;
+  } catch (err) {
+    console.warn("GM ping broadcast failed:", err);
+    return false;
+  }
+}
+
+function drawSsPingLocallyForGm({ x, y, sceneId, userId, color }) {
+  const px = Number(x);
+  const py = Number(y);
+  if (!Number.isFinite(px) || !Number.isFinite(py)) return false;
+  try {
+    canvas.controls?.drawPing?.(
+      { x: px, y: py },
+      {
+        scene: String(sceneId ?? "") || (game.scenes?.viewed?.id ?? canvas?.scene?.id ?? null),
+        user: (String(userId ?? "") || game.user?.id || null),
+        ...(color ? { color } : {})
+      }
+    );
+    return true;
+  } catch (_err) {
+    try {
+      canvas.ping?.({ x: px, y: py });
+      return true;
+    } catch (__err) {
+      return false;
+    }
+  }
+}
+
+const ssMapPingSnapshotPlayerState = globalThis.__SS_MAP_PING_SNAPSHOT_PLAYER__ ?? (globalThis.__SS_MAP_PING_SNAPSHOT_PLAYER__ = {
+  overlay: null,
+  statusEl: null,
+  hintEl: null,
+  imageEl: null,
+  closeBtn: null,
+  requestId: "",
+  sceneId: "",
+  waiting: false,
+  snapshotReady: false
+});
+
+const ssMapPingSnapshotGmState = globalThis.__SS_MAP_PING_SNAPSHOT_GM__ ?? (globalThis.__SS_MAP_PING_SNAPSHOT_GM__ = {
+  pending: new Map()
+});
+
+function makeSsMapPingSnapshotRequestId() {
+  try {
+    return foundry?.utils?.randomID?.() ?? `ssmps-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  } catch (_err) {
+    return `ssmps-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+}
+
+function ensureSsMapPingSnapshotOverlay() {
+  const state = ssMapPingSnapshotPlayerState;
+  if (state.overlay instanceof HTMLElement) return state.overlay;
+
+  const overlay = document.createElement("div");
+  overlay.className = "ss-map-ping-snapshot-overlay";
+  Object.assign(overlay.style, {
+    position: "fixed",
+    inset: "0",
+    zIndex: "2147483000",
+    display: "none",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "12px",
+    background: "rgba(5, 9, 14, 0.9)"
+  });
+
+  const card = document.createElement("section");
+  Object.assign(card.style, {
+    width: "min(96vw, 780px)",
+    maxHeight: "96vh",
+    display: "grid",
+    gridTemplateRows: "auto auto auto minmax(260px, 1fr) auto",
+    gap: "6px",
+    padding: "10px",
+    borderRadius: "10px",
+    border: "1px solid rgba(214, 181, 109, 0.55)",
+    background: "rgba(13, 19, 29, 0.97)",
+    boxShadow: "0 14px 32px rgba(0,0,0,.45)",
+    color: "#f2ead3"
+  });
+
+  const title = document.createElement("div");
+  title.textContent = "Ping On Map";
+  title.style.cssText = "font-weight:800; letter-spacing:.04em; text-align:center;";
+
+  const status = document.createElement("div");
+  status.style.cssText = "text-align:center; font-weight:700; font-size:.95rem;";
+  status.textContent = "Please wait for the GM...";
+
+  const hint = document.createElement("div");
+  hint.style.cssText = "text-align:center; font-size:.82rem; opacity:.9; line-height:1.25;";
+  hint.textContent = "The GM is preparing a low-quality map snapshot for a general placement ping.";
+
+  const imageWrap = document.createElement("div");
+  Object.assign(imageWrap.style, {
+    minHeight: "clamp(240px, 52vh, 620px)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: "8px",
+    border: "1px solid rgba(214, 181, 109, 0.28)",
+    background: "rgba(0, 0, 0, 0.55)",
+    overflow: "hidden"
+  });
+
+  const image = document.createElement("img");
+  Object.assign(image.style, {
+    width: "100%",
+    height: "100%",
+    objectFit: "contain",
+    display: "none",
+    touchAction: "manipulation",
+    cursor: "crosshair",
+    background: "rgb(0,0,0)"
+  });
+  imageWrap.appendChild(image);
+
+  const actions = document.createElement("div");
+  actions.style.cssText = "display:grid; grid-template-columns:1fr; gap:8px;";
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.textContent = "Close";
+  Object.assign(closeBtn.style, {
+    minHeight: "2.2rem",
+    borderRadius: "8px",
+    border: "1px solid rgba(214, 181, 109, 0.45)",
+    background: "rgba(24, 30, 43, 0.92)",
+    color: "#f2ead3",
+    fontWeight: "700"
+  });
+  actions.appendChild(closeBtn);
+
+  closeBtn.addEventListener("click", () => {
+    overlay.style.display = "none";
+    state.requestId = "";
+    state.sceneId = "";
+    state.waiting = false;
+    state.snapshotReady = false;
+  });
+
+  image.addEventListener("click", (ev) => {
+    if (game.user?.isGM) return;
+    if (!state.snapshotReady || !state.requestId) return;
+    const rect = image.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    const nx = (ev.clientX - rect.left) / rect.width;
+    const ny = (ev.clientY - rect.top) / rect.height;
+    if (!(nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1)) return;
+
+    const sent = sendCommandToGmSocket("ssMapPingSnapshot", {
+      mode: "tap",
+      requestId: state.requestId,
+      sceneId: state.sceneId || "",
+      nx,
+      ny,
+      timestamp: Date.now(),
+      userId: game.user?.id ?? null
+    });
+    if (!sent) {
+      ui.notifications?.warn?.("No active GM connected.");
+      return;
+    }
+
+    status.textContent = "Ping sent to GM.";
+    hint.textContent = "Tap again to send another general ping, or Close when done.";
+  });
+
+  card.append(title, status, hint, imageWrap, actions);
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+
+  state.overlay = overlay;
+  state.statusEl = status;
+  state.hintEl = hint;
+  state.imageEl = image;
+  state.closeBtn = closeBtn;
+  return overlay;
+}
+
+function openSsMapPingSnapshotWaiting({ requestId, sceneId = "" } = {}) {
+  const state = ssMapPingSnapshotPlayerState;
+  const overlay = ensureSsMapPingSnapshotOverlay();
+  state.requestId = String(requestId ?? "");
+  state.sceneId = String(sceneId ?? "");
+  state.waiting = true;
+  state.snapshotReady = false;
+
+  if (state.imageEl) {
+    state.imageEl.removeAttribute("src");
+    state.imageEl.style.display = "none";
+  }
+  if (state.statusEl) {
+    state.statusEl.textContent = "Please wait for the GM...";
+  }
+  if (state.hintEl) {
+    state.hintEl.textContent = "The GM is preparing a low-quality map snapshot for a general placement ping. No zoom; use it only for approximate ping placement.";
+  }
+  overlay.style.display = "flex";
+}
+
+function showSsMapPingSnapshotImage({ requestId, sceneId = "", image = "" } = {}) {
+  const state = ssMapPingSnapshotPlayerState;
+  const overlay = ensureSsMapPingSnapshotOverlay();
+  state.requestId = String(requestId ?? state.requestId ?? "");
+  state.sceneId = String(sceneId ?? state.sceneId ?? "");
+  state.waiting = false;
+  state.snapshotReady = true;
+
+  if (state.imageEl) {
+    state.imageEl.src = String(image ?? "");
+    state.imageEl.style.display = "block";
+  }
+  if (state.statusEl) {
+    state.statusEl.textContent = "Tap the image to ping a location for the GM.";
+  }
+  if (state.hintEl) {
+    state.hintEl.textContent = "Low-quality reference only. No zoom. Use taps for general placement guidance.";
+  }
+  overlay.style.display = "flex";
+}
+
+function showSsMapPingSnapshotCancelled(message = "GM cancelled the map ping request.") {
+  const state = ssMapPingSnapshotPlayerState;
+  const overlay = ensureSsMapPingSnapshotOverlay();
+  state.waiting = false;
+  state.snapshotReady = false;
+  if (state.imageEl) {
+    state.imageEl.removeAttribute("src");
+    state.imageEl.style.display = "none";
+  }
+  if (state.statusEl) state.statusEl.textContent = "Map ping request not completed.";
+  if (state.hintEl) state.hintEl.textContent = String(message || "GM cancelled the map ping request.");
+  overlay.style.display = "flex";
+}
+
+function requestSsMapPingSnapshot({ actorName = "", sceneId = "" } = {}) {
+  if (game.user?.isGM) return false;
+  const requestId = makeSsMapPingSnapshotRequestId();
+  openSsMapPingSnapshotWaiting({ requestId, sceneId });
+
+  const sent = sendCommandToGmSocket("ssMapPingSnapshot", {
+    mode: "request",
+    requestId,
+    sceneId: String(sceneId ?? ""),
+    actorName: String(actorName ?? ""),
+    timestamp: Date.now(),
+    userId: game.user?.id ?? null
+  });
+
+  if (!sent) {
+    showSsMapPingSnapshotCancelled("No active GM is connected.");
+    ui.notifications?.warn?.("No active GM connected.");
+    return false;
+  }
+
+  ui.notifications?.info?.("Ping-on-map request sent. Please wait for the GM.");
+  return true;
+}
+
+async function captureSsMapPingSnapshotForGm({ scale = 0.34, quality = 0.45 } = {}) {
+  if (!game.user?.isGM) throw new Error("GM only");
+  if (!canvas?.ready) throw new Error("Canvas not ready");
+
+  const renderer = canvas.app?.renderer;
+  const ex = renderer?.extract ?? renderer?.plugins?.extract;
+  if (!renderer || !ex?.canvas) throw new Error("PIXI extract API unavailable");
+
+  const stage = canvas.stage ?? canvas.app?.stage ?? null;
+  if (!stage) throw new Error("Canvas stage unavailable");
+
+  const screenW = Math.max(1, Math.round(renderer.screen?.width || window.innerWidth || 1));
+  const screenH = Math.max(1, Math.round(renderer.screen?.height || window.innerHeight || 1));
+
+  // Hide nonessential layers so players only get a general actor+map reference.
+  const hiddenTargets = [
+    canvas.tiles,
+    canvas.notes,
+    canvas.drawings,
+    canvas.templates,
+    canvas.controls,
+    canvas.interface,
+    canvas.hud
+  ].filter((x) => x && typeof x.visible === "boolean");
+  const visibilitySnapshot = hiddenTargets.map((target) => [target, target.visible]);
+
+  let rt = null;
+  let extracted = null;
+  try {
+    for (const [target] of visibilitySnapshot) target.visible = false;
+
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+    rt = PIXI.RenderTexture.create({ width: screenW, height: screenH });
+    try {
+      renderer.render(stage, { renderTexture: rt, clear: true });
+    } catch (_err) {
+      renderer.render({ container: stage, target: rt, clear: true });
+    }
+    extracted = ex.canvas(rt);
+  } finally {
+    for (const [target, wasVisible] of visibilitySnapshot) {
+      try { target.visible = wasVisible; } catch (_err) { /* noop */ }
+    }
+    try { rt?.destroy?.(true); } catch (_err) { /* noop */ }
+  }
+
+  if (!(extracted instanceof HTMLCanvasElement)) throw new Error("Snapshot capture returned no canvas.");
+
+  const out = document.createElement("canvas");
+  out.width = Math.max(1, Math.round(screenW * scale));
+  out.height = Math.max(1, Math.round(screenH * scale));
+  const ctx = out.getContext("2d");
+  if (!ctx) throw new Error("2D canvas context unavailable.");
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "low";
+  ctx.drawImage(extracted, 0, 0, out.width, out.height);
+
+  const wt = canvas.stage.worldTransform;
+  return {
+    image: out.toDataURL("image/webp", quality),
+    capture: {
+      a: wt.a,
+      b: wt.b,
+      c: wt.c,
+      d: wt.d,
+      tx: wt.tx,
+      ty: wt.ty,
+      screenW,
+      screenH,
+      sceneId: canvas.scene?.id ?? game.scenes?.viewed?.id ?? ""
+    }
+  };
+}
+
+async function sendSsMapPingSnapshotToPlayer(requestId) {
+  const request = ssMapPingSnapshotGmState.pending.get(String(requestId ?? ""));
+  if (!request) return false;
+
+  const sceneId = String(request.sceneId || canvas.scene?.id || game.scenes?.viewed?.id || "");
+  const viewedSceneId = String(game.scenes?.viewed?.id ?? canvas.scene?.id ?? "");
+  if (sceneId && viewedSceneId && sceneId !== viewedSceneId) {
+    ui.notifications?.warn?.("Open the requested scene before sending the map snapshot.");
+    return false;
+  }
+
+  const snap = await captureSsMapPingSnapshotForGm();
+  request.capture = snap.capture;
+  request.updatedAt = Date.now();
+
+  emitSsSocketMessage({
+    type: "ssMapPingSnapshot",
+    mode: "snapshot",
+    toUserId: request.userId,
+    requestId: request.requestId,
+    sceneId: request.capture.sceneId,
+    image: snap.image,
+    timestamp: Date.now(),
+    userId: game.user?.id ?? null
+  });
+
+  ui.notifications?.info?.(`Sent map snapshot to ${request.requesterName}.`);
+  return true;
+}
+
+async function executeSsMapPingSnapshotCommand(data = {}) {
+  const mode = String(data.mode ?? "").toLowerCase();
+  if (!mode) return;
+
+  if (mode === "request") {
+    if (!game.user?.isGM) return;
+    const ts = Number.parseInt(data.timestamp, 10);
+    if (Number.isFinite(ts) && (Date.now() - ts > 45000)) return;
+
+    const requestId = String(data.requestId ?? makeSsMapPingSnapshotRequestId());
+    const requesterUserId = String(data.userId ?? "");
+    if (!requesterUserId) return;
+
+    const requester = game.users?.get?.(requesterUserId) ?? null;
+    const requesterName = requester?.name ?? "Player";
+    const actorName = String(data.actorName ?? "").trim();
+    const sceneId = String(data.sceneId ?? "");
+    const label = actorName ? `${requesterName} (${actorName})` : requesterName;
+
+    ssMapPingSnapshotGmState.pending.set(requestId, {
+      requestId,
+      userId: requesterUserId,
+      requesterName,
+      actorName,
+      sceneId,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      capture: null
+    });
+
+    ui.notifications?.info?.(`${label} requested a Ping on Map snapshot.`);
+
+    const viewedSceneId = String(game.scenes?.viewed?.id ?? canvas.scene?.id ?? "");
+    const wrongSceneOpen = !!(sceneId && viewedSceneId && sceneId !== viewedSceneId);
+    const content = `
+      <div class="ss-map-ping-gm-request">
+        <p><strong>${escapeHtml(label)}</strong> requested a low-quality map snapshot for a general ping.</p>
+        <p><strong>Important:</strong> Select that player's token first so the snapshot uses the correct FOV/FOW view before sending.</p>
+        <p>Pan/zoom to the area you want them to reference, then click <strong>Yes</strong> to send the snapshot.</p>
+        <p>The snapshot hides tiles, journal notes, drawings/templates, and canvas controls.</p>
+        <p><em>Player taps are approximate pings only (no zoom).</em></p>
+        ${wrongSceneOpen ? `<p style="color:#ffcf7d"><strong>Warning:</strong> Open the requested scene before sending.</p>` : ""}
+      </div>
+    `;
+
+    let approved = false;
+    if (globalThis.Dialog?.confirm) {
+      approved = !!(await Dialog.confirm({
+        title: "Ping On Map Request",
+        content,
+        yes: () => true,
+        no: () => false,
+        defaultYes: true
+      }).catch?.(() => false));
+    } else {
+      approved = !!globalThis.confirm?.(`${label} requested a ping-on-map snapshot. Pan/zoom to the desired area and click OK to send.`);
+    }
+
+    if (!approved) {
+      emitSsSocketMessage({
+        type: "ssMapPingSnapshot",
+        mode: "cancel",
+        toUserId: requesterUserId,
+        requestId,
+        message: "GM cancelled the ping-on-map request.",
+        timestamp: Date.now(),
+        userId: game.user?.id ?? null
+      });
+      return;
+    }
+
+    try {
+      await sendSsMapPingSnapshotToPlayer(requestId);
+    } catch (err) {
+      console.error("Map ping snapshot send failed:", err);
+      ui.notifications?.error?.("Failed to send map snapshot.");
+      emitSsSocketMessage({
+        type: "ssMapPingSnapshot",
+        mode: "cancel",
+        toUserId: requesterUserId,
+        requestId,
+        message: "GM could not send the map snapshot.",
+        timestamp: Date.now(),
+        userId: game.user?.id ?? null
+      });
+    }
+    return;
+  }
+
+  if (mode === "tap") {
+    if (!game.user?.isGM) return;
+    const requestId = String(data.requestId ?? "");
+    const req = ssMapPingSnapshotGmState.pending.get(requestId);
+    if (!req?.capture) return;
+
+    const requesterUserId = String(data.userId ?? "");
+    if (!requesterUserId || requesterUserId !== String(req.userId ?? "")) return;
+    const ts = Number.parseInt(data.timestamp, 10);
+    if (Number.isFinite(ts) && (Date.now() - ts > 45000)) return;
+
+    const nx = Number(data.nx);
+    const ny = Number(data.ny);
+    if (!Number.isFinite(nx) || !Number.isFinite(ny)) return;
+    if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return;
+
+    const viewedSceneId = String(game.scenes?.viewed?.id ?? canvas.scene?.id ?? "");
+    if (req.capture.sceneId && viewedSceneId && req.capture.sceneId !== viewedSceneId) {
+      ui.notifications?.warn?.("Map ping tap ignored because the GM is on a different scene now.");
+      return;
+    }
+
+    try {
+      const sx = nx * Number(req.capture.screenW || 0);
+      const sy = ny * Number(req.capture.screenH || 0);
+      const mat = new PIXI.Matrix(
+        Number(req.capture.a || 1),
+        Number(req.capture.b || 0),
+        Number(req.capture.c || 0),
+        Number(req.capture.d || 1),
+        Number(req.capture.tx || 0),
+        Number(req.capture.ty || 0)
+      );
+      const inv = mat.clone().invert();
+      const point = inv.apply(new PIXI.Point(sx, sy));
+
+      const pingUserId = String(req.userId ?? "");
+      const pingSceneId = String(req.capture.sceneId || viewedSceneId || "");
+      const pingUser = game.users?.get?.(pingUserId) ?? null;
+      const pingColor = pingUser?.color?.css ?? pingUser?.color ?? null;
+      const pingZoom = Number(req.capture.d || req.capture.a || canvas?.stage?.scale?.x || 1) || 1;
+      const broadcasted = await broadcastSsPingForAllClients({
+        x: point.x,
+        y: point.y,
+        sceneId: pingSceneId,
+        zoom: pingZoom,
+        style: "pulse",
+        pull: false
+      });
+      if (!broadcasted) {
+        drawSsPingLocallyForGm({ x: point.x, y: point.y, sceneId: pingSceneId, userId: pingUserId || game.user.id, color: pingColor });
+      } else {
+        drawSsPingLocallyForGm({ x: point.x, y: point.y, sceneId: pingSceneId, userId: pingUserId || game.user.id, color: pingColor });
+      }
+      ui.notifications?.info?.(`Map ping from ${req.requesterName}${req.actorName ? ` (${req.actorName})` : ""}.`);
+    } catch (err) {
+      console.warn("Map ping tap mapping failed:", err);
+      ui.notifications?.warn?.("Could not place the map ping.");
+    }
+    return;
+  }
+}
+
+function handleSsMapPingSnapshotSocketForPlayer(data = {}) {
+  if (game.user?.isGM) return;
+  const toUserId = String(data.toUserId ?? "");
+  if (!toUserId || toUserId !== String(game.user?.id ?? "")) return;
+
+  const mode = String(data.mode ?? "").toLowerCase();
+  if (mode === "snapshot") {
+    showSsMapPingSnapshotImage({
+      requestId: String(data.requestId ?? ""),
+      sceneId: String(data.sceneId ?? ""),
+      image: String(data.image ?? "")
+    });
+    return;
+  }
+
+  if (mode === "cancel") {
+    showSsMapPingSnapshotCancelled(String(data.message ?? "GM cancelled the ping-on-map request."));
   }
 }
 
 Hooks.once("ready", () => {
-  if (globalThis.__SS_CUSTOM_JS_SOCKET_BOUND__) return;
-  globalThis.__SS_CUSTOM_JS_SOCKET_BOUND__ = true;
+  if (globalThis.__SS_SHEET_SIDEKICK_SOCKET_BOUND__ || globalThis.__SS_CUSTOM_JS_SOCKET_BOUND__) return;
+  globalThis.__SS_SHEET_SIDEKICK_SOCKET_BOUND__ = true;
+  globalThis.__SS_CUSTOM_JS_SOCKET_BOUND__ = true; // keep legacy guard key for compatibility
 
-  game.socket?.on?.("module.custom-js", async (data) => {
+  const handleSsSocketMessage = async (data) => {
     if (!data || typeof data !== "object") return;
 
     if (data.type === "ssControls" && !game.user?.isGM) {
@@ -4587,6 +6829,35 @@ Hooks.once("ready", () => {
       return;
     }
 
+    if (data.type === "ssPrep" && game.user?.isGM) {
+      const exec = globalThis.__SS_EXECUTE_PREP_COMMAND__;
+      if (typeof exec === "function") {
+        await exec({
+          actorId: data.actorId ?? "",
+          itemId: data.itemId ?? "",
+          prepared: data.prepared,
+          timestamp: Number.parseInt(data.timestamp, 10),
+          userId: data.userId ?? null
+        });
+      } else if (typeof globalThis.__SS_PREP_CHAT_HOOK__ === "function") {
+        await globalThis.__SS_PREP_CHAT_HOOK__({
+          content: `!ss-prep ${data.actorId ?? ""} ${data.itemId ?? ""} ${data.prepared ? "1" : "0"} ${Number.parseInt(data.timestamp, 10)} ${data.userId ?? ""}`,
+          author: { id: data.userId ?? null },
+          user: { id: data.userId ?? null }
+        });
+      }
+      return;
+    }
+
+    if (data.type === "ssTargetUiSync" && !game.user?.isGM) {
+      const incomingSceneId = String(data.sceneId ?? "").trim();
+      const viewedSceneId = String(game.scenes?.viewed?.id ?? "").trim();
+      if (incomingSceneId && viewedSceneId && incomingSceneId !== viewedSceneId) return;
+      syncOpenTargetPanelsWithLiveTargets();
+      refreshAllUseConfirmLiveTargetSummaries();
+      return;
+    }
+
     if (data.type === "ssTarget" && game.user?.isGM) {
       await executeSsTargetCommand({
         mode: String(data.mode ?? "").toLowerCase(),
@@ -4598,8 +6869,19 @@ Hooks.once("ready", () => {
       return;
     }
 
+    if (data.type === "ssMapPingSnapshot") {
+      if (game.user?.isGM) {
+        await executeSsMapPingSnapshotCommand(data);
+      } else {
+        handleSsMapPingSnapshotSocketForPlayer(data);
+      }
+      return;
+    }
+
     // no-op: target apply is handled via whisper chat command path
-  });
+  };
+
+  game.socket?.on?.(SS_SOCKET_CHANNEL_PRIMARY, handleSsSocketMessage);
 });
 
 // 2b. TAP-TO-CAST FOR SHEET-SIDEKICK PLAYERS (spells + features)
@@ -4619,6 +6901,15 @@ function bindTapToCast(app, element) {
     const alreadyBound = scope.dataset.ssTapCastBound === "1";
     if (!alreadyBound) scope.dataset.ssTapCastBound = "1";
     restoreSheetScroll(scope, actor);
+    const isIosSafariClient = document.body.classList.contains("ss-ios-safari");
+    const clearActiveActionFocus = () => {
+      if (!isIosSafariClient) return;
+      const ae = document.activeElement;
+      if (!(ae instanceof HTMLElement)) return;
+      if (ae.matches("input, textarea, select")) return;
+      if (!ae.closest("li.item, .item-controls, .item-control, .item-action")) return;
+      ae.blur?.();
+    };
 
     let decorateQueued = false;
     const queueDecorate = () => {
@@ -4630,16 +6921,39 @@ function bindTapToCast(app, element) {
       });
     };
 
-    const queueRestore = () => {
-      requestAnimationFrame(() => restoreSheetScroll(scope, actor));
-      setTimeout(() => restoreSheetScroll(scope, actor), 140);
+    let queuedRestoreRaf = 0;
+    let queuedRestoreTimer = 0;
+    const queueRestore = (delayMs = 0) => {
+      if (queuedRestoreRaf) {
+        cancelAnimationFrame(queuedRestoreRaf);
+        queuedRestoreRaf = 0;
+      }
+      if (queuedRestoreTimer) {
+        window.clearTimeout(queuedRestoreTimer);
+        queuedRestoreTimer = 0;
+      }
+      const run = () => restoreSheetScroll(scope, actor);
+      const delay = Math.max(0, Number(delayMs) || 0);
+      if (delay > 0) {
+        queuedRestoreTimer = window.setTimeout(() => {
+          queuedRestoreTimer = 0;
+          queuedRestoreRaf = requestAnimationFrame(() => {
+            queuedRestoreRaf = 0;
+            run();
+          });
+        }, delay);
+        return;
+      }
+      queuedRestoreRaf = requestAnimationFrame(() => {
+        queuedRestoreRaf = 0;
+        run();
+      });
     };
     const queueRehydrate = () => {
       queueDecorate();
       queueRestore();
       setTimeout(() => {
         queueDecorate();
-        queueRestore();
       }, 120);
     };
 
@@ -4650,6 +6964,24 @@ function bindTapToCast(app, element) {
         if (!itemId) return;
 
         const item = actor.items.get(itemId);
+        const prepMode = String(item?.system?.preparation?.mode ?? "").toLowerCase();
+        const isAlwaysPreparedSpell = item?.type === "spell" && prepMode === "always";
+        const prepBtn = row.querySelector(".item-action[data-action='prepare'], .item-action[data-action='ssPrepareToggle']");
+        row.classList.toggle("ss-spell-always-prepared", isAlwaysPreparedSpell);
+        if (prepBtn instanceof HTMLElement) {
+          if (item?.type === "spell" && prepMode !== "always") {
+            if (prepBtn.dataset.ssPrepPatched !== "1") {
+              prepBtn.dataset.ssOriginalAction = String(prepBtn.dataset.action ?? "prepare");
+              prepBtn.dataset.action = "ssPrepareToggle";
+              prepBtn.dataset.ssPrepPatched = "1";
+            }
+          } else if (prepBtn.dataset.ssPrepPatched === "1") {
+            prepBtn.dataset.action = String(prepBtn.dataset.ssOriginalAction ?? "prepare");
+            delete prepBtn.dataset.ssPrepPatched;
+            delete prepBtn.dataset.ssOriginalAction;
+          }
+          prepBtn.classList.toggle("ss-prepare-always", isAlwaysPreparedSpell);
+        }
         const qtyInput = row.querySelector(".item-detail.item-quantity input[data-name='system.quantity']");
         if (qtyInput instanceof HTMLInputElement) {
           qtyInput.readOnly = true;
@@ -4700,13 +7032,14 @@ function bindTapToCast(app, element) {
           infoBtn.type = "button";
           infoBtn.className = "ss-tooltip-btn";
           infoBtn.setAttribute("aria-label", "Show Details");
-          infoBtn.style.marginLeft = "0.35rem";
+          infoBtn.style.marginLeft = "0";
           infoBtn.style.marginTop = "0";
           infoBtn.style.border = "1px solid var(--color-border-light-2, #666)";
           infoBtn.style.borderRadius = "4px";
           infoBtn.style.background = "rgba(0,0,0,0.15)";
-          infoBtn.style.minWidth = "1.4rem";
-          infoBtn.style.height = "1.4rem";
+          infoBtn.style.minWidth = "1.8rem";
+          infoBtn.style.width = "1.8rem";
+          infoBtn.style.height = "1.8rem";
           infoBtn.style.lineHeight = "1";
           infoBtn.style.fontWeight = "700";
           infoBtn.style.color = "var(--color-text-primary, #ddd)";
@@ -4726,7 +7059,7 @@ function bindTapToCast(app, element) {
             controls.appendChild(infoBtn);
           }
         } else if (nameAction && infoBtn.previousElementSibling !== nameAction) {
-          infoBtn.style.marginLeft = "0.35rem";
+          infoBtn.style.marginLeft = "0";
           nameAction.insertAdjacentElement("afterend", infoBtn);
         }
       });
@@ -4789,6 +7122,88 @@ function bindTapToCast(app, element) {
     };
     scrollEls.forEach(el => el.addEventListener("scroll", onScroll, { passive: true }));
 
+    const isActionTouchTarget = (target) => {
+      if (!(target instanceof HTMLElement)) return false;
+      return !!target.closest(
+        ".item-action, .item-control, .ss-tooltip-btn, .item-name[data-action='ssUseItem'], .item-name [data-action='ssUseItem'], h4[data-action='ssUseItem'], [data-action='ssUseItem']"
+      );
+    };
+
+    const saveBeforeMutation = (event) => {
+      const target = event?.target;
+      if (!(target instanceof HTMLElement)) return;
+      if (!target.closest(".item-action, .item-control, .ss-tooltip-btn, button, input, select, .item-name[data-action='ssUseItem'], [data-action='ssUseItem']")) return;
+      recordSsScrollTrace("ui.saveBeforeMutation", {
+        actorId: String(actor?.id ?? ""),
+        target: describeSsElementForTrace(target)
+      });
+      saveSheetScroll(scope, actor);
+      if (isIosSafariClient && isActionTouchTarget(target)) {
+        window.setTimeout(clearActiveActionFocus, 0);
+      }
+    };
+    const onDropRestore = () => {
+      saveSheetScroll(scope, actor);
+      queueRestore();
+    };
+    const iosTouchState = {
+      candidate: false,
+      moved: false,
+      startX: 0,
+      startY: 0
+    };
+    const onTouchStartTrack = (event) => {
+      if (!isIosSafariClient) return;
+      const target = event?.target;
+      if (!isActionTouchTarget(target)) {
+        iosTouchState.candidate = false;
+        return;
+      }
+      const touch = event?.changedTouches?.[0] ?? event?.touches?.[0] ?? null;
+      if (!touch) {
+        iosTouchState.candidate = false;
+        return;
+      }
+      iosTouchState.candidate = true;
+      iosTouchState.moved = false;
+      iosTouchState.startX = Number(touch.clientX ?? 0);
+      iosTouchState.startY = Number(touch.clientY ?? 0);
+    };
+    const onTouchMoveTrack = (event) => {
+      if (!isIosSafariClient || !iosTouchState.candidate) return;
+      const touch = event?.changedTouches?.[0] ?? event?.touches?.[0] ?? null;
+      if (!touch) return;
+      const dx = Number(touch.clientX ?? 0) - iosTouchState.startX;
+      const dy = Number(touch.clientY ?? 0) - iosTouchState.startY;
+      if ((dx * dx + dy * dy) > 100) iosTouchState.moved = true; // >10px
+    };
+    const onTouchEndRestore = (event) => {
+      if (!isIosSafariClient) return;
+      const target = event?.target;
+      const shouldRestore = iosTouchState.candidate && !iosTouchState.moved && isActionTouchTarget(target);
+      iosTouchState.candidate = false;
+      iosTouchState.moved = false;
+      if (!shouldRestore) return;
+      recordSsScrollTrace("ui.touchend.action", {
+        actorId: String(actor?.id ?? ""),
+        target: describeSsElementForTrace(target)
+      });
+      clearActiveActionFocus();
+      queueRestore(24);
+    };
+    const onTouchCancelTrack = () => {
+      iosTouchState.candidate = false;
+      iosTouchState.moved = false;
+    };
+    scope.addEventListener("pointerdown", saveBeforeMutation, true);
+    scope.addEventListener("change", saveBeforeMutation, true);
+    scope.addEventListener("dragstart", saveBeforeMutation, true);
+    scope.addEventListener("drop", onDropRestore, true);
+    scope.addEventListener("touchstart", onTouchStartTrack, true);
+    scope.addEventListener("touchmove", onTouchMoveTrack, true);
+    scope.addEventListener("touchend", onTouchEndRestore, true);
+    scope.addEventListener("touchcancel", onTouchCancelTrack, true);
+
     let lastTapTs = 0;
     let confirmOpen = false;
 
@@ -4796,14 +7211,30 @@ function bindTapToCast(app, element) {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
 
-      if (target.closest(".item-action[data-action='prepare']")) {
-        const prepareBtn = target.closest(".item-action[data-action='prepare']");
+      if (target.closest(".item-action[data-action='ssPrepareToggle'], .item-action[data-action='prepare']")) {
+        clearActiveActionFocus();
+        recordSsScrollTrace("ui.prepareClick", {
+          actorId: String(actor?.id ?? ""),
+          target: describeSsElementForTrace(target)
+        });
+        const prepareBtn = target.closest(".item-action[data-action='ssPrepareToggle'], .item-action[data-action='prepare']");
         if (prepareBtn instanceof HTMLElement) {
-          prepareBtn.classList.add("ss-prepare-pending");
-          const isPressed = prepareBtn.getAttribute("aria-pressed") === "true" || prepareBtn.classList.contains("active");
-          prepareBtn.setAttribute("aria-pressed", String(!isPressed));
-          prepareBtn.classList.toggle("active", !isPressed);
-          setTimeout(() => prepareBtn.classList.remove("ss-prepare-pending"), 900);
+          const row = prepareBtn.closest("li.item[data-item-id]");
+          const itemId = String(row?.dataset?.itemId ?? "").trim();
+          const item = itemId ? actor.items.get(itemId) : null;
+          const prepMode = String(item?.system?.preparation?.mode ?? "").toLowerCase();
+          if (item?.type === "spell" && prepMode !== "always") {
+            event.preventDefault();
+            event.stopPropagation();
+            if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+            const currentlyPressed = prepareBtn.getAttribute("aria-pressed") === "true" || prepareBtn.classList.contains("active");
+            queueSsSpellPrepareToggle({
+              actor,
+              item,
+              desiredPrepared: !currentlyPressed
+            });
+            queueRestore();
+          }
         }
         saveSheetScroll(scope, actor);
         setTimeout(() => {
@@ -4816,6 +7247,7 @@ function bindTapToCast(app, element) {
       // Show rich item tooltip from dedicated info button.
       const tooltipBtn = target.closest(".ss-tooltip-btn");
       if (tooltipBtn) {
+        clearActiveActionFocus();
         event.preventDefault();
         event.stopPropagation();
         if (event.stopImmediatePropagation) event.stopImmediatePropagation();
@@ -4829,6 +7261,7 @@ function bindTapToCast(app, element) {
 
       const filterBtn = target.closest(".ss-action-filter-btn");
       if (filterBtn instanceof HTMLButtonElement) {
+        clearActiveActionFocus();
         event.preventDefault();
         event.stopPropagation();
         if (event.stopImmediatePropagation) event.stopImmediatePropagation();
@@ -4896,6 +7329,7 @@ function bindTapToCast(app, element) {
         ".item-name[data-action='ssUseItem'], .item-name [data-action='ssUseItem'], h4[data-action='ssUseItem'], [data-action='ssUseItem']"
       );
       if (!nameTapTarget) return;
+      clearActiveActionFocus();
 
       const row = nameTapTarget.closest("li.item[data-item-id]");
       const itemId = row?.dataset?.itemId;
@@ -4940,12 +7374,28 @@ function bindTapToCast(app, element) {
         const ammoSuffix = ammoItemId ? ` ${ammoItemId}` : "";
         sendCommandToGmWhisper(`!ss-use ${actor.id} ${itemId} ${commandTs}${levelSuffix}${ammoSuffix}`);
       }
+      if (decision?.requestPlacementPing) {
+        requestSsMapPingSnapshot({
+          actorName: actor?.name ?? "",
+          sceneId: game.scenes?.viewed?.id ?? ""
+        });
+      }
     }, { capture: true });
 
     app.once?.("close", () => {
       scrollEls.forEach(el => el.removeEventListener("scroll", onScroll));
       scope.removeEventListener("contextmenu", onContextMenu, true);
+      scope.removeEventListener("pointerdown", saveBeforeMutation, true);
+      scope.removeEventListener("change", saveBeforeMutation, true);
+      scope.removeEventListener("dragstart", saveBeforeMutation, true);
+      scope.removeEventListener("drop", onDropRestore, true);
+      scope.removeEventListener("touchstart", onTouchStartTrack, true);
+      scope.removeEventListener("touchmove", onTouchMoveTrack, true);
+      scope.removeEventListener("touchend", onTouchEndRestore, true);
+      scope.removeEventListener("touchcancel", onTouchCancelTrack, true);
       if (rehydrateTimer) window.clearTimeout(rehydrateTimer);
+      if (queuedRestoreTimer) window.clearTimeout(queuedRestoreTimer);
+      if (queuedRestoreRaf) cancelAnimationFrame(queuedRestoreRaf);
       observer.disconnect();
     });
   } catch (e) {
@@ -4957,6 +7407,20 @@ Hooks.on("renderActorSheetV2", bindTapToCast);
 Hooks.on("renderActorSheet", bindTapToCast);
 Hooks.on("renderActorSheetV2", applySheetSidekickUiCleanup);
 Hooks.on("renderActorSheet", applySheetSidekickUiCleanup);
+Hooks.on("renderActorSheetV2", (app) => {
+  if (game.user?.isGM) return;
+  const actorId = String(app?.actor?.id ?? "");
+  if (!actorId) return;
+  recordSsScrollTrace("renderActorSheetV2", { actorId });
+  queueOpenSheetScrollRestore(actorId, 0);
+});
+Hooks.on("renderActorSheet", (app) => {
+  if (game.user?.isGM) return;
+  const actorId = String(app?.actor?.id ?? "");
+  if (!actorId) return;
+  recordSsScrollTrace("renderActorSheet", { actorId });
+  queueOpenSheetScrollRestore(actorId, 0);
+});
 Hooks.on("canvasReady", () => {
   if (game.user?.isGM) return;
   queueSheetSidekickFormRefresh(80);
@@ -5314,7 +7778,59 @@ Hooks.once("ready", () => {
   Hooks.on("createChatMessage", globalThis.__SS_ROLL_CHAT_HOOK__);
 });
 
-// 6. GM EXECUTION LOGIC FOR SHEET-SIDEKICK TARGETING
+// 6. GM EXECUTION LOGIC FOR SHEET-SIDEKICK SPELL PREP TOGGLE
+Hooks.once("ready", () => {
+  if (!game.user.isGM) return;
+
+  const COMMAND_PREFIX = "!ss-prep";
+
+  const executeSsPrepCommand = async ({ actorId, itemId, prepared, timestamp, userId }) => {
+    if (!actorId || !itemId) return;
+    if (Number.isFinite(timestamp) && (Date.now() - timestamp > 20000)) return;
+    if (!userId) return;
+
+    const actor = game.actors.get(actorId);
+    if (!actor) return;
+    const ownership = actor.ownership?.[userId] ?? 0;
+    if (ownership < CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER) return;
+
+    const item = actor.items.get(itemId);
+    if (!item || item.type !== "spell") return;
+    const prepMode = String(item.system?.preparation?.mode ?? "").toLowerCase();
+    if (prepMode === "always") return;
+
+    const nextPrepared = (prepared === true) || String(prepared ?? "").trim() === "1" || String(prepared ?? "").toLowerCase() === "true";
+    const currentPrepared = !!item.system?.preparation?.prepared;
+    if (nextPrepared === currentPrepared) return;
+
+    try {
+      await item.update({ "system.preparation.prepared": nextPrepared });
+    } catch (err) {
+      console.error("Sheet Sidekick prep toggle failed:", err);
+    }
+  };
+  globalThis.__SS_EXECUTE_PREP_COMMAND__ = executeSsPrepCommand;
+
+  if (globalThis.__SS_PREP_CHAT_HOOK__) Hooks.off("createChatMessage", globalThis.__SS_PREP_CHAT_HOOK__);
+
+  globalThis.__SS_PREP_CHAT_HOOK__ = async (msg) => {
+    const text = normalizeChatCommandText(msg.content);
+    if (!text.toLowerCase().startsWith(COMMAND_PREFIX)) return;
+
+    const parts = text.split(/\s+/);
+    const actorId = parts[1] ?? "";
+    const itemId = parts[2] ?? "";
+    const prepared = parts[3] ?? "0";
+    const timestamp = Number.parseInt(parts[4], 10);
+    const explicitUserId = parts[5] ?? null;
+    const userId = explicitUserId ?? msg.author?.id ?? msg.user?.id ?? null;
+    await executeSsPrepCommand({ actorId, itemId, prepared, timestamp, userId });
+  };
+
+  Hooks.on("createChatMessage", globalThis.__SS_PREP_CHAT_HOOK__);
+});
+
+// 7. GM EXECUTION LOGIC FOR SHEET-SIDEKICK TARGETING
 Hooks.once("ready", () => {
   if (!game.user.isGM) return;
 

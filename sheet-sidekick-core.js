@@ -231,17 +231,7 @@ function applyMobileLayoutFlags() {
   }
 }
 function addLogoutControl(sheetContainer) {
-  const logoutDock = $(`
-    <div class="ss-logout-dock" data-ss-id="ss-logout-dock">
-      <button id="ss-log-out" class="button ss-logout-btn" type="button" aria-label="Log Out" title="Log Out">
-        <i class="fa-solid fa-right-from-bracket"></i>
-      </button>
-    </div>
-  `);
-  logoutDock.find("#ss-log-out").on("click", async function() {
-    await confirmAndRunLogout();
-  });
-  sheetContainer.append(logoutDock);
+  sheetContainer?.find?.(".ss-logout-dock")?.remove?.();
   $(SS_CORE_SELECTOR.actorList).addClass("collapse");
   applyMobileLayoutFlags();
   syncLogoutDockPlacement();
@@ -267,63 +257,19 @@ async function confirmAndRunLogout() {
   ui.menu?.items?.logout?.onClick?.();
 }
 function ensureHeaderLogoutButton(form) {
-  if (!(form instanceof HTMLElement)) return false;
-  const headerButtons = form.querySelector(".sheet-header .sheet-header-buttons");
-  if (!(headerButtons instanceof HTMLElement)) return false;
-  let logoutBtn = headerButtons.querySelector(".ss-header-logout-btn");
-  if (!(logoutBtn instanceof HTMLButtonElement)) {
-    logoutBtn = document.createElement("button");
-    logoutBtn.type = "button";
-    logoutBtn.className = "gold-button ss-header-logout-btn";
-    logoutBtn.setAttribute("aria-label", "Log Out");
-    logoutBtn.setAttribute("title", "Log Out");
-    logoutBtn.innerHTML = `<i class="fa-solid fa-right-from-bracket" inert></i>`;
-    logoutBtn.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      await confirmAndRunLogout();
-    });
-    headerButtons.appendChild(logoutBtn);
+  if (form instanceof HTMLElement) {
+    form.querySelectorAll(".ss-header-logout-btn").forEach((el) => el.remove());
   }
   return true;
 }
 function syncLogoutDockPlacement() {
   const container = document.querySelector(SS_CORE_SELECTOR.container);
   if (!(container instanceof HTMLElement)) return;
-  const dock = container.querySelector(".ss-logout-dock");
-  if (!(dock instanceof HTMLElement)) return;
+  container.querySelectorAll(".ss-logout-dock").forEach((el) => el.remove());
 
   const form = document.querySelector(SS_CORE_SELECTOR.sheet);
-  const mountedInHeader = ensureHeaderLogoutButton(form);
-  dock.style.display = mountedInHeader ? "none" : "";
-  if (mountedInHeader) {
-    container.style.removeProperty("--ss-logout-dock-top");
-    dock.classList.remove("ss-smart-offset");
-    return;
-  }
-
-  if (!(form instanceof HTMLElement)) {
-    container.style.removeProperty("--ss-logout-dock-top");
-    return;
-  }
-
-  const narrow = window.innerWidth <= 720;
-  dock.classList.toggle("ss-smart-offset", narrow);
-  if (!narrow) {
-    container.style.removeProperty("--ss-logout-dock-top");
-    return;
-  }
-
-  const headerButtons = form.querySelector(".sheet-header .sheet-header-buttons");
-  if (!(headerButtons instanceof HTMLElement)) {
-    container.style.removeProperty("--ss-logout-dock-top");
-    return;
-  }
-
-  const cRect = container.getBoundingClientRect();
-  const bRect = headerButtons.getBoundingClientRect();
-  const topPx = Math.max(8, Math.round(bRect.bottom - cRect.top + 8));
-  container.style.setProperty("--ss-logout-dock-top", `${topPx}px`);
+  ensureHeaderLogoutButton(form);
+  container.style.removeProperty("--ss-logout-dock-top");
 }
 async function openInitialOwnedActorSheet() {
   const ownedActors = getOwnedActors();
