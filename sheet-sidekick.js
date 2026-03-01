@@ -1552,6 +1552,10 @@ function syncUseConfirmDialogState(scope, state) {
     warning.style.display = invalidReason ? "block" : "none";
     warning.classList.toggle("ss-turn-locked", !!turnLockReason);
   }
+  const gmNote = scope.querySelector(".ss-use-confirm-gm-note");
+  if (gmNote instanceof HTMLElement) {
+    gmNote.style.display = getActiveGmIds().length ? "none" : "block";
+  }
 
   const yesButton = findUseConfirmYesButton(scope);
   if (yesButton instanceof HTMLButtonElement) {
@@ -1822,6 +1826,12 @@ async function confirmTapToCast(itemOrName, actor = null) {
   const hintsHtml = buildRollHintsHtml(initial.rolls);
   const componentsHtml = buildComponentHintsHtml(initial.components);
   const consumesHtml = buildConsumesHintsHtml(initial.consumes);
+  const gmOnline = getActiveGmIds().length > 0;
+  const gmNoteHtml = `
+    <p class="ss-use-confirm-gm-note"${gmOnline ? ' style="display:none"' : ""}>
+      GM is not connected. You can review this item, but a GM must be online to process Use/Target changes.
+    </p>
+  `;
   const content = `
     <section class="ss-use-confirm" data-ss-hints-key="${escapeHtml(dialogKey)}">
       <header class="ss-use-confirm-header">
@@ -1833,6 +1843,7 @@ async function confirmTapToCast(itemOrName, actor = null) {
       </header>
       ${levelHtml}
       ${ammoHtml}
+      ${gmNoteHtml}
       <p class="ss-use-confirm-warning" style="display:none"></p>
       <div class="ss-use-confirm-body">
         <div class="ss-roll-hints-wrap">${hintsHtml}</div>
@@ -2552,6 +2563,47 @@ function getActiveGmIds() {
   return game.users.filter((u) => u.isGM && u.active).map((u) => u.id);
 }
 
+const ssNoGmDialogState = globalThis.__SS_NO_GM_DIALOG_STATE__ ?? (globalThis.__SS_NO_GM_DIALOG_STATE__ = {
+  lastShownAt: 0
+});
+
+async function showSsNoActiveGmDialog({
+  title = "GM Required",
+  actionLabel = "This action"
+} = {}) {
+  const now = Date.now();
+  if ((now - Number(ssNoGmDialogState.lastShownAt ?? 0)) < 900) return false;
+  ssNoGmDialogState.lastShownAt = now;
+
+  const safeAction = escapeHtml(String(actionLabel ?? "This action").trim() || "This action");
+  const content = `
+    <section class="ss-no-gm-dialog">
+      <p><strong>No GM is currently connected.</strong></p>
+      <p>${safeAction} needs a GM online to process changes.</p>
+      <p>Please let your GM know you want to make updates, then try again once the GM is logged in.</p>
+    </section>
+  `;
+
+  if (globalThis.Dialog) {
+    const dialog = new Dialog({
+      title,
+      content,
+      buttons: {
+        close: {
+          label: "Close",
+          callback: () => true
+        }
+      },
+      default: "close"
+    });
+    dialog.render(true);
+    return true;
+  }
+
+  ui.notifications?.warn?.("No GM is connected. This action requires a GM online.");
+  return false;
+}
+
 const SS_SOCKET_CHANNEL_PRIMARY = "module.sheet-sidekick";
 
 function emitSsSocketMessage(payload = {}) {
@@ -2635,25 +2687,76 @@ function sendUseInfoToGmWhisper(actor, item, slotLevel = null, ammoItemId = null
 }
 
 const ssSpellPrepQueueByKey = globalThis.__SS_SPELL_PREP_QUEUE_BY_KEY__ ?? (globalThis.__SS_SPELL_PREP_QUEUE_BY_KEY__ = new Map());
+const ssEquipPendingByKey = globalThis.__SS_EQUIP_PENDING_BY_KEY__ ?? (globalThis.__SS_EQUIP_PENDING_BY_KEY__ = new Map());
 
 function getSsSpellPrepQueueKey(actorId, itemId) {
   return `${String(actorId ?? "").trim()}::${String(itemId ?? "").trim()}`;
 }
 
-function getSsPrepareButtons(actorId, itemId) {
+function getSsItemActionButtons(actorId, itemId, action) {
   const aid = String(actorId ?? "").trim();
   const iid = String(itemId ?? "").trim();
-  if (!aid || !iid) return [];
+  const act = String(action ?? "").trim();
+  if (!aid || !iid || !act) return [];
   const escapedId = globalThis.CSS?.escape ? CSS.escape(iid) : iid.replace(/["\\]/g, "\\$&");
   const forms = Array.from(document.querySelectorAll(SS_SHEET_FORM_SELECTOR))
     .filter((form) => String(form?.dataset?.actorId ?? "") === aid);
   const buttons = [];
   forms.forEach((form) => {
-    form.querySelectorAll(`li.item[data-item-id="${escapedId}"] .item-action[data-action="prepare"]`).forEach((btn) => {
+    form.querySelectorAll(`li.item[data-item-id="${escapedId}"] .item-action[data-action="${act}"]`).forEach((btn) => {
       if (btn instanceof HTMLElement) buttons.push(btn);
     });
   });
   return buttons;
+}
+
+function getSsPrepareButtons(actorId, itemId) {
+  const all = [
+    ...getSsItemActionButtons(actorId, itemId, "prepare"),
+    ...getSsItemActionButtons(actorId, itemId, "ssPrepareToggle")
+  ];
+  return Array.from(new Set(all));
+}
+
+function getSpellPreparationMethod(item) {
+  const method = String(foundry.utils.getProperty(item, "system.method") ?? "").toLowerCase();
+  if (method) return method;
+  // Legacy/raw fallback without touching deprecated SpellData#preparation getter.
+  const sourceMode = String(foundry.utils.getProperty(item, "_source.system.preparation.mode") ?? "").toLowerCase();
+  if (sourceMode) return sourceMode;
+  const snap = (typeof item?.toObject === "function") ? item.toObject(false) : null;
+  return String(foundry.utils.getProperty(snap, "system.preparation.mode") ?? "").toLowerCase();
+}
+
+function getSpellPreparedState(item) {
+  if (!item) return NaN;
+  const direct = Number(foundry.utils.getProperty(item, "system.prepared"));
+  if (Number.isFinite(direct)) return direct;
+  const source = Number(foundry.utils.getProperty(item, "_source.system.prepared"));
+  if (Number.isFinite(source)) return source;
+  const snap = (typeof item?.toObject === "function") ? item.toObject(false) : null;
+  return Number(foundry.utils.getProperty(snap, "system.prepared"));
+}
+
+function isAlwaysPreparedSpellItem(item) {
+  if (!item || item.type !== "spell") return false;
+  const alwaysState = Number(foundry.utils.getProperty(CONFIG, "DND5E.spellPreparationStates.always.value"));
+  const fallbackAlwaysState = Number.isFinite(alwaysState) ? alwaysState : 2;
+  const preparedState = getSpellPreparedState(item);
+  if (Number.isFinite(preparedState) && preparedState === fallbackAlwaysState) return true;
+  const prepMethod = getSpellPreparationMethod(item);
+  return prepMethod === "always";
+}
+
+function isSpellPrepared(item) {
+  if (foundry.utils.hasProperty(item, "system.prepared")) {
+    return !!foundry.utils.getProperty(item, "system.prepared");
+  }
+  if (foundry.utils.hasProperty(item, "_source.system.preparation.prepared")) {
+    return !!foundry.utils.getProperty(item, "_source.system.preparation.prepared");
+  }
+  const snap = (typeof item?.toObject === "function") ? item.toObject(false) : null;
+  return !!foundry.utils.getProperty(snap, "system.preparation.prepared");
 }
 
 function setSsPrepareVisualState(actorId, itemId, prepared, pending = true) {
@@ -2661,13 +2764,53 @@ function setSsPrepareVisualState(actorId, itemId, prepared, pending = true) {
     btn.setAttribute("aria-pressed", String(!!prepared));
     btn.classList.toggle("active", !!prepared);
     btn.classList.toggle("ss-prepare-pending", !!pending);
+    btn.classList.toggle("ss-action-pending", !!pending);
   });
+}
+
+function setSsEquipVisualPending(actorId, itemId, pending = true) {
+  getSsItemActionButtons(actorId, itemId, "equip").forEach((btn) => {
+    btn.classList.toggle("ss-equip-pending", !!pending);
+    btn.classList.toggle("ss-action-pending", !!pending);
+  });
+}
+
+function markSsEquipPending(actorId, itemId) {
+  const aid = String(actorId ?? "").trim();
+  const iid = String(itemId ?? "").trim();
+  if (!aid || !iid) return;
+  const key = getSsSpellPrepQueueKey(aid, iid);
+  const existingTimer = ssEquipPendingByKey.get(key);
+  if (existingTimer) window.clearTimeout(existingTimer);
+  setSsEquipVisualPending(aid, iid, true);
+  const timer = window.setTimeout(() => {
+    ssEquipPendingByKey.delete(key);
+    setSsEquipVisualPending(aid, iid, false);
+  }, 2800);
+  ssEquipPendingByKey.set(key, timer);
+}
+
+function clearSsEquipPending(actorId, itemId) {
+  const aid = String(actorId ?? "").trim();
+  const iid = String(itemId ?? "").trim();
+  if (!aid || !iid) return;
+  const key = getSsSpellPrepQueueKey(aid, iid);
+  const existingTimer = ssEquipPendingByKey.get(key);
+  if (existingTimer) {
+    window.clearTimeout(existingTimer);
+    ssEquipPendingByKey.delete(key);
+  }
+  setSsEquipVisualPending(aid, iid, false);
 }
 
 function queueSsSpellPrepareToggle({ actor, item, desiredPrepared }) {
   const actorId = String(actor?.id ?? "").trim();
   const itemId = String(item?.id ?? "").trim();
   if (!actorId || !itemId) return false;
+  if (!getActiveGmIds().length) {
+    showSsNoActiveGmDialog({ actionLabel: "Preparing/unpreparing spells" });
+    return false;
+  }
   const nextPrepared = !!desiredPrepared;
   const key = getSsSpellPrepQueueKey(actorId, itemId);
   const existing = ssSpellPrepQueueByKey.get(key) ?? { timer: null, clearTimer: null, desiredPrepared: null };
@@ -3172,10 +3315,10 @@ function rowMatchesPreparedFilter(row, actor, mode) {
   if (mode !== "prepared") return true;
   const item = getRowItem(row, actor);
   if (!item || item.type !== "spell") return false;
-  const prep = item.system?.preparation ?? {};
-  const prepMode = String(prep.mode ?? prep.type ?? "").toLowerCase();
-  const isPrepared = prep.prepared === true;
-  if (prepMode === "always") return true; // include Always Prepared
+  const prepMode = getSpellPreparationMethod(item);
+  const isAlwaysPrepared = isAlwaysPreparedSpellItem(item);
+  const isPrepared = isSpellPrepared(item);
+  if (isAlwaysPrepared || prepMode === "always") return true; // include Always Prepared
   const lvl = Number(item.system?.level ?? 0);
   if (Number.isFinite(lvl) && lvl <= 0) {
     // Cantrips only count if explicitly marked prepared-like.
@@ -5239,7 +5382,9 @@ function injectSheetDpad(app, element) {
       if (targetHeader) targetHeader.textContent = title;
       targetPanel?.setAttribute("aria-label", title);
       targetStatus.classList.remove("ss-turn-locked");
+      targetStatus.classList.remove("ss-gm-required");
       targetPanel?.classList.remove("ss-turn-locked");
+      targetPanel?.classList.remove("ss-gm-required");
       targetPanel?.classList.remove("ss-target-applied");
       targetPanel?.classList.toggle("ss-ping-only", !allowTargetingActions);
       applyTargetsBtn.classList.remove("ss-turn-locked");
@@ -5671,6 +5816,12 @@ function injectSheetDpad(app, element) {
         if (!sceneId) return;
         const forceTargeting = scope.dataset.ssTargetForce === "1";
         if (!forceTargeting) return;
+        if (!getActiveGmIds().length) {
+          targetStatus.classList.add("ss-gm-required");
+          targetPanel?.classList.add("ss-gm-required");
+          targetStatus.textContent = "GM Required: No GM is currently active. Apply will work once a GM is logged in.";
+          return;
+        }
         const turnAccess = getCombatTurnAccessForUser(game.user?.id ?? null, {
           combat: getActiveCombatForViewedScene()
         });
@@ -5997,11 +6148,14 @@ Hooks.on("updateItem", (item, changed) => {
   if (game.user?.isGM) return;
   const actorId = String(item?.parent?.id ?? "");
   if (!actorId) return;
+  clearSsEquipPending(actorId, String(item?.id ?? ""));
   const itemMutationLikely =
     Object.keys(changed ?? {}).length > 0
     || foundry.utils.hasProperty(changed, "sort")
     || foundry.utils.hasProperty(changed, "system.equipped")
     || foundry.utils.hasProperty(changed, "system.quantity")
+    || foundry.utils.hasProperty(changed, "system.prepared")
+    || foundry.utils.hasProperty(changed, "system.method")
     || foundry.utils.hasProperty(changed, "system.preparation.prepared")
     || foundry.utils.hasProperty(changed, "system.preparation.mode");
   if (!itemMutationLikely) return;
@@ -6238,6 +6392,7 @@ const ssMapPingSnapshotPlayerState = globalThis.__SS_MAP_PING_SNAPSHOT_PLAYER__ 
   overlay: null,
   statusEl: null,
   hintEl: null,
+  imageWrapEl: null,
   imageEl: null,
   closeBtn: null,
   requestId: "",
@@ -6384,6 +6539,7 @@ function ensureSsMapPingSnapshotOverlay() {
   state.overlay = overlay;
   state.statusEl = status;
   state.hintEl = hint;
+  state.imageWrapEl = imageWrap;
   state.imageEl = image;
   state.closeBtn = closeBtn;
   return overlay;
@@ -6401,11 +6557,14 @@ function openSsMapPingSnapshotWaiting({ requestId, sceneId = "" } = {}) {
     state.imageEl.removeAttribute("src");
     state.imageEl.style.display = "none";
   }
+  if (state.imageWrapEl) state.imageWrapEl.style.display = "flex";
   if (state.statusEl) {
     state.statusEl.textContent = "Please wait for the GM...";
+    state.statusEl.style.color = "";
   }
   if (state.hintEl) {
     state.hintEl.textContent = "The GM is preparing a low-quality map snapshot for a general placement ping. No zoom; use it only for approximate ping placement.";
+    state.hintEl.style.color = "";
   }
   overlay.style.display = "flex";
 }
@@ -6422,11 +6581,14 @@ function showSsMapPingSnapshotImage({ requestId, sceneId = "", image = "" } = {}
     state.imageEl.src = String(image ?? "");
     state.imageEl.style.display = "block";
   }
+  if (state.imageWrapEl) state.imageWrapEl.style.display = "flex";
   if (state.statusEl) {
     state.statusEl.textContent = "Tap the image to ping a location for the GM.";
+    state.statusEl.style.color = "";
   }
   if (state.hintEl) {
     state.hintEl.textContent = "Low-quality reference only. No zoom. Use taps for general placement guidance.";
+    state.hintEl.style.color = "";
   }
   overlay.style.display = "flex";
 }
@@ -6440,8 +6602,35 @@ function showSsMapPingSnapshotCancelled(message = "GM cancelled the map ping req
     state.imageEl.removeAttribute("src");
     state.imageEl.style.display = "none";
   }
+  if (state.imageWrapEl) state.imageWrapEl.style.display = "flex";
   if (state.statusEl) state.statusEl.textContent = "Map ping request not completed.";
   if (state.hintEl) state.hintEl.textContent = String(message || "GM cancelled the map ping request.");
+  if (state.closeBtn) state.closeBtn.textContent = "Close";
+  if (state.statusEl) state.statusEl.style.color = "";
+  if (state.hintEl) state.hintEl.style.color = "";
+  overlay.style.display = "flex";
+}
+
+function showSsMapPingSnapshotNoGm() {
+  const state = ssMapPingSnapshotPlayerState;
+  const overlay = ensureSsMapPingSnapshotOverlay();
+  state.waiting = false;
+  state.snapshotReady = false;
+  state.requestId = "";
+  if (state.imageEl) {
+    state.imageEl.removeAttribute("src");
+    state.imageEl.style.display = "none";
+  }
+  if (state.imageWrapEl) state.imageWrapEl.style.display = "none";
+  if (state.statusEl) {
+    state.statusEl.textContent = "GM Not Connected";
+    state.statusEl.style.color = "#ffb3a6";
+  }
+  if (state.hintEl) {
+    state.hintEl.textContent = "Ping On Map needs a GM online. Please wait for your GM to log in, then try again.";
+    state.hintEl.style.color = "#ffd2c7";
+  }
+  if (state.closeBtn) state.closeBtn.textContent = "Close";
   overlay.style.display = "flex";
 }
 
@@ -6460,8 +6649,8 @@ function requestSsMapPingSnapshot({ actorName = "", sceneId = "" } = {}) {
   });
 
   if (!sent) {
-    showSsMapPingSnapshotCancelled("No active GM is connected.");
-    ui.notifications?.warn?.("No active GM connected.");
+    showSsMapPingSnapshotNoGm();
+    ui.notifications?.warn?.("No GM is active. Ping On Map requires a GM to be connected.");
     return false;
   }
 
@@ -6964,8 +7153,8 @@ function bindTapToCast(app, element) {
         if (!itemId) return;
 
         const item = actor.items.get(itemId);
-        const prepMode = String(item?.system?.preparation?.mode ?? "").toLowerCase();
-        const isAlwaysPreparedSpell = item?.type === "spell" && prepMode === "always";
+        const prepMode = getSpellPreparationMethod(item);
+        const isAlwaysPreparedSpell = isAlwaysPreparedSpellItem(item) || (item?.type === "spell" && prepMode === "always");
         const prepBtn = row.querySelector(".item-action[data-action='prepare'], .item-action[data-action='ssPrepareToggle']");
         row.classList.toggle("ss-spell-always-prepared", isAlwaysPreparedSpell);
         if (prepBtn instanceof HTMLElement) {
@@ -6981,6 +7170,23 @@ function bindTapToCast(app, element) {
             delete prepBtn.dataset.ssOriginalAction;
           }
           prepBtn.classList.toggle("ss-prepare-always", isAlwaysPreparedSpell);
+          prepBtn.classList.toggle("ss-prepare-locked", isAlwaysPreparedSpell);
+          if (isAlwaysPreparedSpell) {
+            prepBtn.setAttribute("aria-disabled", "true");
+            prepBtn.setAttribute("title", "Always Prepared (locked)");
+            if (prepBtn instanceof HTMLButtonElement) {
+              prepBtn.disabled = true;
+            } else {
+              prepBtn.setAttribute("disabled", "disabled");
+            }
+          } else {
+            prepBtn.removeAttribute("aria-disabled");
+            if (prepBtn instanceof HTMLButtonElement) {
+              prepBtn.disabled = false;
+            } else {
+              prepBtn.removeAttribute("disabled");
+            }
+          }
         }
         const qtyInput = row.querySelector(".item-detail.item-quantity input[data-name='system.quantity']");
         if (qtyInput instanceof HTMLInputElement) {
@@ -7211,6 +7417,32 @@ function bindTapToCast(app, element) {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
 
+      if (target.closest(".item-action[data-action='equip']")) {
+        const equipBtn = target.closest(".item-action[data-action='equip']");
+        if (equipBtn instanceof HTMLElement) {
+          const row = equipBtn.closest("li.item[data-item-id]");
+          const itemId = String(row?.dataset?.itemId ?? "").trim();
+          const item = itemId ? actor.items.get(itemId) : null;
+          if (item) {
+            const hasGm = getActiveGmIds().length > 0;
+            if (!hasGm) {
+              event.preventDefault();
+              event.stopPropagation();
+              if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+              showSsNoActiveGmDialog({ actionLabel: "Equipping/unequipping items" });
+              return;
+            }
+            markSsEquipPending(actor.id, item.id);
+          }
+        }
+        saveSheetScroll(scope, actor);
+        setTimeout(() => {
+          queueDecorate();
+          queueRestore();
+        }, 50);
+        return;
+      }
+
       if (target.closest(".item-action[data-action='ssPrepareToggle'], .item-action[data-action='prepare']")) {
         clearActiveActionFocus();
         recordSsScrollTrace("ui.prepareClick", {
@@ -7222,11 +7454,28 @@ function bindTapToCast(app, element) {
           const row = prepareBtn.closest("li.item[data-item-id]");
           const itemId = String(row?.dataset?.itemId ?? "").trim();
           const item = itemId ? actor.items.get(itemId) : null;
-          const prepMode = String(item?.system?.preparation?.mode ?? "").toLowerCase();
+          const prepMode = getSpellPreparationMethod(item);
+          const lockedAlwaysPrepared = !!(
+            prepareBtn.classList.contains("ss-prepare-always")
+            || row?.classList?.contains("ss-spell-always-prepared")
+            || isAlwaysPreparedSpellItem(item)
+            || (item?.type === "spell" && prepMode === "always")
+          );
+          if (lockedAlwaysPrepared) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+            ui.notifications?.info?.("Always Prepared spells are locked.");
+            return;
+          }
           if (item?.type === "spell" && prepMode !== "always") {
             event.preventDefault();
             event.stopPropagation();
             if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+            if (!getActiveGmIds().length) {
+              showSsNoActiveGmDialog({ actionLabel: "Preparing/unpreparing spells" });
+              return;
+            }
             const currentlyPressed = prepareBtn.getAttribute("aria-pressed") === "true" || prepareBtn.classList.contains("active");
             queueSsSpellPrepareToggle({
               actor,
@@ -7368,6 +7617,10 @@ function bindTapToCast(app, element) {
         slotLevel: hasSlotLevel ? slotLevel : null,
         ammoItemId
       });
+      if (!sent && !getActiveGmIds().length) {
+        showSsNoActiveGmDialog({ actionLabel: "Using items" });
+        return;
+      }
       if (!sent) {
         const levelPart = hasSlotLevel ? String(slotLevel) : (ammoItemId ? "0" : "");
         const levelSuffix = levelPart ? ` ${levelPart}` : "";
@@ -7796,15 +8049,16 @@ Hooks.once("ready", () => {
 
     const item = actor.items.get(itemId);
     if (!item || item.type !== "spell") return;
-    const prepMode = String(item.system?.preparation?.mode ?? "").toLowerCase();
+    if (isAlwaysPreparedSpellItem(item)) return;
+    const prepMode = getSpellPreparationMethod(item);
     if (prepMode === "always") return;
 
     const nextPrepared = (prepared === true) || String(prepared ?? "").trim() === "1" || String(prepared ?? "").toLowerCase() === "true";
-    const currentPrepared = !!item.system?.preparation?.prepared;
+    const currentPrepared = isSpellPrepared(item);
     if (nextPrepared === currentPrepared) return;
 
     try {
-      await item.update({ "system.preparation.prepared": nextPrepared });
+      await item.update({ "system.prepared": nextPrepared });
     } catch (err) {
       console.error("Sheet Sidekick prep toggle failed:", err);
     }

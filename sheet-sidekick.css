@@ -941,6 +941,15 @@ body.hide-ui #slideshow-display img {
 	background: rgba(110, 82, 19, 0.1);
 }
 
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-status.ss-gm-required {
+	opacity: 1;
+	color: rgba(255, 210, 210, 0.98);
+	padding: 0.45rem 0.55rem;
+	border-radius: 8px;
+	border: 1px solid rgba(188, 92, 92, 0.58);
+	background: rgba(97, 28, 28, 0.24);
+}
+
 :is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-status .ss-target-turn-name {
 	color: #ffd77d;
 	font-weight: 800;
@@ -2246,6 +2255,17 @@ body.hide-ui #slideshow-display img {
 	font-size: 0.92rem;
 }
 
+.app.dialog .window-content .ss-use-confirm-gm-note {
+	margin: 0.12rem 0 0.22rem;
+	padding: 0.4rem 0.5rem;
+	border-radius: 6px;
+	border: 1px solid rgba(194, 126, 29, 0.45);
+	background: rgba(124, 82, 20, 0.12);
+	color: #6e480e;
+	font-size: 0.9rem;
+	font-weight: 650;
+}
+
 .app.dialog .window-content .ss-use-confirm-warning {
 	display: none;
 	margin: 0.1rem 0 0.2rem;
@@ -2737,19 +2757,52 @@ dialog.application.ss-use-confirm-dialog {
 
 :is(form.sheet-sidekick-sheet, form.ss-sheet) .item-action[data-action="prepare"].ss-prepare-pending,
 :is(form.sheet-sidekick-sheet, form.ss-sheet) .item-action[data-action="ssPrepareToggle"].ss-prepare-pending {
-	outline: 1px solid rgba(214, 181, 109, 0.85);
-	box-shadow: 0 0 8px rgba(214, 181, 109, 0.45);
+	/*outline: 1px solid rgba(214, 181, 109, 0.85);
+	box-shadow: 0 0 8px rgba(214, 181, 109, 0.45);*/
 	filter: brightness(1.12);
 }
 
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-action.ss-action-pending {
+	position: relative;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-action.ss-action-pending i {
+	opacity: 0.2 !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-action.ss-action-pending::after {
+	content: "";
+	position: absolute;
+	inset: 0.32rem;
+	border-radius: 999px;
+	border: 2px solid rgba(214, 181, 109, 0.35);
+	border-top-color: rgba(214, 181, 109, 0.95);
+	animation: ss-action-spin 0.75s linear infinite;
+	pointer-events: none;
+}
+
+@keyframes ss-action-spin {
+	from { transform: rotate(0deg); }
+	to { transform: rotate(360deg); }
+}
+
 :is(form.sheet-sidekick-sheet, form.ss-sheet) li.item.ss-spell-always-prepared .item-action[data-action="prepare"],
-:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-action[data-action="prepare"].ss-prepare-always {
-	box-shadow: none !important;
+:is(form.sheet-sidekick-sheet, form.ss-sheet) li.item.ss-spell-always-prepared .item-action[data-action="ssPrepareToggle"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-action.ss-prepare-always {
+	border-color: rgba(121, 201, 255, 0.78) !important;
 }
 
 :is(form.sheet-sidekick-sheet, form.ss-sheet) li.item.ss-spell-always-prepared .item-action[data-action="prepare"] i,
-:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-action[data-action="prepare"].ss-prepare-always i {
+:is(form.sheet-sidekick-sheet, form.ss-sheet) li.item.ss-spell-always-prepared .item-action[data-action="ssPrepareToggle"] i,
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-action.ss-prepare-always i {
 	color: #79c9ff !important;
+	text-shadow: 0 0 7px rgba(121, 201, 255, 0.45);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-action.ss-prepare-locked {
+	cursor: not-allowed !important;
+	opacity: 1 !important;
+	pointer-events: none !important;
 }
 
 /* Ability score polish */
