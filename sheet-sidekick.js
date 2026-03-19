@@ -26,6 +26,12 @@ function getSheetSidekickSetting(key, fallback = null) {
   return fallback;
 }
 
+Hooks.once("ready", () => {
+  if (game.user?.isGM) {
+    document.body.classList.add("ss-gm-client");
+  }
+});
+
 function shouldForceNoCanvasForSheetSidekickUser() {
   const sheetSidekick = getSheetSidekickModule();
   if (!sheetSidekick?.active) return false;
@@ -810,6 +816,7 @@ function normalizeHintCard(hint) {
   const key = label.toLowerCase();
   if (key.includes("attack")) return { type: "attack", label: "Attack", value, icon: SS_HINT_ICONS.attack };
   if (key.includes("save")) return { type: "save", label: label.replace(/\s+/g, " "), value, icon: SS_HINT_ICONS.save };
+  if (key.includes("check") || key.includes("initiative")) return { type: "check", label: label.replace(/\s+/g, " "), value, icon: SS_HINT_ICONS.formula };
   if (key.includes("damage")) return { type: "damage", label: "Damage", value, icon: getDamageTypeIconPath(value) };
   if (key.includes("healing") || key.includes("heal")) return { type: "healing", label: "Healing", value, icon: getDamageTypeIconPath(`healing ${value}`) };
   if (key.includes("formula")) return { type: "formula", label: "Formula", value, icon: SS_HINT_ICONS.formula };
@@ -818,8 +825,13 @@ function normalizeHintCard(hint) {
   return { type: "misc", label, value, icon: SS_HINT_ICONS.misc };
 }
 
-function buildRollHintsHtml(rolls = []) {
+function buildRollHintsHtml(rolls = [], options = {}) {
   if (!Array.isArray(rolls) || !rolls.length) return "";
+  const title = String(options?.title ?? "Use this item's Suggested Rolls").trim();
+  const helperText = String(
+    options?.helperText
+    ?? "These are prompts only. Roll the listed checks and add the shown modifier(s)."
+  ).trim();
   const cards = rolls.map((hint) => {
     const card = normalizeHintCard(hint);
     return `
@@ -834,7 +846,8 @@ function buildRollHintsHtml(rolls = []) {
   }).join("");
 
   return `
-    <p class="ss-hint-section-title"><strong>Suggested roll:</strong></p>
+    <p class="ss-hint-section-title"><strong>${escapeHtml(title)}</strong></p>
+    <p class="ss-hint-section-note">${escapeHtml(helperText)}</p>
     <div class="ss-hint-grid">${cards}</div>
   `;
 }
@@ -885,6 +898,138 @@ function getSsItemActivities(item) {
   if (Array.isArray(raw?.contents)) return raw.contents;
   if (typeof raw === "object") return Object.values(raw);
   return [];
+}
+
+function parseNumericValue(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function pickFirstNumeric(...values) {
+  for (const value of values) {
+    const numeric = parseNumericValue(value);
+    if (numeric !== null) return numeric;
+  }
+  return null;
+}
+
+function hasConcentrationStatusId(value) {
+  const id = String(value ?? "").trim().toLowerCase();
+  if (!id) return false;
+  if (id === "concentration" || id === "concentrating") return true;
+  if (id.endsWith(".concentration") || id.endsWith(".concentrating")) return true;
+  return id.includes("concentrat");
+}
+
+function itemRequiresConcentration(item) {
+  if (!item) return false;
+  const root = item.system ?? {};
+  const components = root?.components ?? {};
+  const duration = root?.duration ?? {};
+  const properties = root?.properties;
+  const labelDuration = String(item?.labels?.duration ?? "").toLowerCase();
+  if (components?.concentration === true || components?.concentration === 1) return true;
+  if (duration?.concentration === true || duration?.concentration === 1) return true;
+  if (String(duration?.units ?? "").toLowerCase() === "concentration") return true;
+  if (labelDuration.includes("concentration")) return true;
+  if (properties && typeof properties === "object") {
+    if (properties?.concentration === true || properties?.con === true) return true;
+    if (typeof properties?.has === "function") {
+      if (properties.has("concentration") || properties.has("con")) return true;
+    }
+    if (Array.isArray(properties)) {
+      if (properties.some((entry) => String(entry ?? "").toLowerCase() === "concentration" || String(entry ?? "").toLowerCase() === "con")) return true;
+    }
+  }
+  const activities = getSsItemActivities(item);
+  for (const activity of activities) {
+    const actDuration = activity?.duration ?? activity?.activation?.duration ?? {};
+    if (actDuration?.concentration === true || actDuration?.concentration === 1) return true;
+    if (String(actDuration?.units ?? "").toLowerCase() === "concentration") return true;
+  }
+  return false;
+}
+
+function effectLooksLikeConcentration(effect) {
+  if (!effect || effect.disabled) return false;
+  const statuses = new Set(Array.from(effect?.statuses ?? []).map((id) => String(id ?? "").trim().toLowerCase()).filter(Boolean));
+  if (Array.from(statuses).some((id) => hasConcentrationStatusId(id))) return true;
+  const name = String(effect?.name ?? effect?.label ?? "").trim().toLowerCase();
+  if (name.includes("concentrat")) return true;
+  const changes = Array.from(effect?.changes ?? []);
+  return changes.some((change) => String(change?.key ?? "").toLowerCase().includes("concentrat"));
+}
+
+function getConcentrationSourceItemId(effect) {
+  const origin = String(effect?.origin ?? effect?.flags?.core?.sourceId ?? "").trim();
+  if (!origin) return "";
+  const match = origin.match(/\.item\.([^.]+)/i);
+  return String(match?.[1] ?? "").trim();
+}
+
+function cleanConcentrationLabel(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const stripped = raw
+    .replace(/^concentrat(?:ion|ing)\s*[:\-]?\s*/i, "")
+    .replace(/\(\s*concentrat(?:ion|ing)\s*\)/ig, "")
+    .trim();
+  if (!stripped) return "";
+  if (/^concentrat(?:ion|ing)?$/i.test(stripped)) return "";
+  return stripped;
+}
+
+function getActorConcentrationMeta(actor) {
+  const result = { active: false, sourceName: "" };
+  if (!actor) return result;
+  const actorStatuses = Array.from(actor?.statuses ?? []).map((id) => String(id ?? "").trim().toLowerCase()).filter(Boolean);
+  if (actorStatuses.some((id) => hasConcentrationStatusId(id))) result.active = true;
+
+  const effects = Array.from(actor?.effects?.contents ?? actor?.effects ?? []);
+  const effect = effects.find((candidate) => effectLooksLikeConcentration(candidate)) ?? null;
+  if (!effect) return result;
+
+  result.active = true;
+  const sourceItemId = getConcentrationSourceItemId(effect);
+  const sourceItemName = sourceItemId ? String(actor?.items?.get?.(sourceItemId)?.name ?? "").trim() : "";
+  if (sourceItemName) {
+    result.sourceName = sourceItemName;
+    return result;
+  }
+
+  const flags = effect?.flags ?? {};
+  const flaggedName = String(
+    flags?.dnd5e?.spellName
+    ?? flags?.dnd5e?.itemData?.name
+    ?? flags?.dae?.itemName
+    ?? flags?.core?.sourceName
+    ?? ""
+  ).trim();
+  if (flaggedName) {
+    result.sourceName = flaggedName;
+    return result;
+  }
+
+  result.sourceName = cleanConcentrationLabel(effect?.name ?? effect?.label ?? "");
+  return result;
+}
+
+function getUseConfirmConcentrationWarning(item, actor) {
+  if (!item || !actor) return "";
+  if (!itemRequiresConcentration(item)) return "";
+  const concentration = getActorConcentrationMeta(actor);
+  if (!concentration.active) return "";
+
+  const nextName = String(item.name ?? "this spell").trim() || "this spell";
+  const currentName = String(concentration.sourceName ?? "").trim();
+  if (currentName) {
+    if (currentName.toLowerCase() === nextName.toLowerCase()) {
+      return `You are already concentrating on ${currentName}. Casting it again starts a new concentration and ends the previous one. D&D 5e allows only one concentration spell at a time.`;
+    }
+    return `You are concentrating on ${currentName}. Casting ${nextName} will end ${currentName}, because in D&D 5e you can concentrate on only one spell at a time.`;
+  }
+  return `You are already concentrating on another spell or effect. Casting ${nextName} will end your current concentration, because in D&D 5e you can concentrate on only one spell at a time.`;
 }
 
 function classifySsUseAssist(item, actor = null) {
@@ -1728,6 +1873,7 @@ async function confirmTapToCast(itemOrName, actor = null) {
   const assistMeta = item ? classifySsUseAssist(item, actor) : {
     hasTargetAssist: false, hasPlacementAssist: false, selfOnly: false, targetLimit: 0, rangeFeet: 0
   };
+  const concentrationWarningText = getUseConfirmConcentrationWarning(item, actor);
   if (item && actor && !game.user?.isGM) {
     const combat = getActiveCombatForViewedScene();
     const turnAccess = getCombatTurnAccessForUser(game.user?.id ?? null, { combat });
@@ -1832,6 +1978,9 @@ async function confirmTapToCast(itemOrName, actor = null) {
       GM is not connected. You can review this item, but a GM must be online to process Use/Target changes.
     </p>
   `;
+  const concentrationHtml = concentrationWarningText
+    ? `<p class="ss-use-confirm-concentration-note">${escapeHtml(concentrationWarningText)}</p>`
+    : "";
   const content = `
     <section class="ss-use-confirm" data-ss-hints-key="${escapeHtml(dialogKey)}">
       <header class="ss-use-confirm-header">
@@ -1844,6 +1993,7 @@ async function confirmTapToCast(itemOrName, actor = null) {
       ${levelHtml}
       ${ammoHtml}
       ${gmNoteHtml}
+      ${concentrationHtml}
       <p class="ss-use-confirm-warning" style="display:none"></p>
       <div class="ss-use-confirm-body">
         <div class="ss-roll-hints-wrap">${hintsHtml}</div>
@@ -1893,8 +2043,15 @@ async function confirmTapToCast(itemOrName, actor = null) {
       if (scope instanceof HTMLElement && state) {
         syncUseConfirmDialogState(scope, state);
       }
+      setupUseConfirmScrollCue(dialogKey);
     }, 40);
     const result = await resultPromise;
+    const openScope = document.querySelector(`.ss-use-confirm[data-ss-hints-key='${dialogKey}']`);
+    const openRoot = openScope?.closest?.(".app.window-app.dialog, dialog.application");
+    if (openRoot?.__ssUseConfirmScrollCueCleanup instanceof Function) {
+      try { openRoot.__ssUseConfirmScrollCueCleanup(); } catch (_err) { /* noop */ }
+      delete openRoot.__ssUseConfirmScrollCueCleanup;
+    }
     ssUseConfirmHintState.delete(dialogKey);
     if (result && typeof result === "object" && "confirmed" in result) return result;
     return { confirmed: !!result, slotLevel: null, ammoItemId: null, requestPlacementPing: false };
@@ -1913,9 +2070,10 @@ async function confirmTapToCast(itemOrName, actor = null) {
     ui.notifications.warn("No compatible ammo available.");
     return { confirmed: false, slotLevel: null, ammoItemId: null, requestPlacementPing: false };
   }
-  const hintText = initial.rolls.length ? `\nSuggested roll: ${initial.rolls[0]}` : "";
+  const hintText = initial.rolls.length ? `\nSuggested rolls: ${initial.rolls.join("; ")}` : "";
+  const concentrationText = concentrationWarningText ? `\n${concentrationWarningText}` : "";
   return {
-    confirmed: !!globalThis.confirm?.(`Use ${itemName} now?${hintText}`),
+    confirmed: !!globalThis.confirm?.(`Use ${itemName} now?${hintText}${concentrationText}`),
     slotLevel: defaultLevel,
     ammoItemId: defaultAmmoId || null,
     requestPlacementPing: !!assistMeta?.hasPlacementAssist
@@ -2371,6 +2529,12 @@ const ssDpadState = globalThis.__SS_DPAD_STATE__ ?? (globalThis.__SS_DPAD_STATE_
   override: null,
   setAt: 0
 });
+const ssDpadViewportLockState = globalThis.__SS_DPAD_VIEWPORT_LOCK_STATE__ ?? (globalThis.__SS_DPAD_VIEWPORT_LOCK_STATE__ = {
+  byActorId: {},
+  sceneId: "",
+  gmUserId: "",
+  at: 0
+});
 
 function setDpadEnabledOverride(value) {
   if (typeof value !== "boolean") return;
@@ -2395,6 +2559,43 @@ function isDpadEnabledByGm() {
   return true;
 }
 
+function setPlayerDpadViewportLockState(payload = {}) {
+  if (game.user?.isGM) return;
+  const next = {
+    byActorId: {},
+    sceneId: String(payload?.sceneId ?? "").trim(),
+    gmUserId: String(payload?.gmUserId ?? "").trim(),
+    at: Number(payload?.at ?? Date.now()) || Date.now()
+  };
+  const raw = payload?.byActorId;
+  if (raw && typeof raw === "object") {
+    for (const [actorId, entry] of Object.entries(raw)) {
+      const aid = String(actorId ?? "").trim();
+      if (!aid) continue;
+      next.byActorId[aid] = {
+        locked: !!entry?.locked,
+        reason: String(entry?.reason ?? "").trim()
+      };
+    }
+  }
+  ssDpadViewportLockState.byActorId = next.byActorId;
+  ssDpadViewportLockState.sceneId = next.sceneId;
+  ssDpadViewportLockState.gmUserId = next.gmUserId;
+  ssDpadViewportLockState.at = next.at;
+}
+
+function getPlayerDpadViewportLockForActor(actorId = "") {
+  const aid = String(actorId ?? "").trim();
+  if (!aid) return { locked: false, reason: "" };
+  const entry = ssDpadViewportLockState.byActorId?.[aid];
+  if (!entry || typeof entry !== "object") return { locked: false, reason: "" };
+  const reason = String(entry.reason ?? "").trim();
+  return {
+    locked: !!entry.locked,
+    reason: reason || "Your token is outside the GM's current view."
+  };
+}
+
 function emitPlayerControlsStateFromGm() {
   if (!game.user?.isGM) return;
   const enabled = game.user.getFlag("world", "dpadEnabled") ?? true;
@@ -2416,6 +2617,86 @@ function emitSsTargetUiSyncFromGm(sceneId = "") {
   });
 }
 
+function getSsTokenPixelBoundsForDpadLock(tokenDoc) {
+  if (!tokenDoc) return null;
+  const gridSize = Number(canvas?.dimensions?.size ?? canvas?.grid?.size ?? 100) || 100;
+  const x = Number(tokenDoc.x ?? 0);
+  const y = Number(tokenDoc.y ?? 0);
+  const wUnits = Number(tokenDoc.width ?? 1) || 1;
+  const hUnits = Number(tokenDoc.height ?? 1) || 1;
+  const w = wUnits * gridSize;
+  const h = hUnits * gridSize;
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !(w > 0) || !(h > 0)) return null;
+  return { x, y, w, h };
+}
+
+function isSsTokenVisibleInGmViewport(tokenDoc) {
+  if (!canvas?.ready || !tokenDoc) return false;
+  const bounds = getSsTokenPixelBoundsForDpadLock(tokenDoc);
+  if (!bounds) return false;
+
+  const stage = canvas.stage;
+  const wt = stage?.worldTransform ?? null;
+  const renderer = canvas.app?.renderer ?? null;
+  const screenW = Number(renderer?.screen?.width ?? window.innerWidth ?? 0);
+  const screenH = Number(renderer?.screen?.height ?? window.innerHeight ?? 0);
+  if (!wt || !(screenW > 0) || !(screenH > 0)) return false;
+
+  const topLeft = wt.apply(new PIXI.Point(bounds.x, bounds.y));
+  const bottomRight = wt.apply(new PIXI.Point(bounds.x + bounds.w, bounds.y + bounds.h));
+  const minX = Math.min(topLeft.x, bottomRight.x);
+  const maxX = Math.max(topLeft.x, bottomRight.x);
+  const minY = Math.min(topLeft.y, bottomRight.y);
+  const maxY = Math.max(topLeft.y, bottomRight.y);
+  const margin = 4;
+
+  return maxX >= -margin && minX <= (screenW + margin) && maxY >= -margin && minY <= (screenH + margin);
+}
+
+function buildSsDpadViewportLockMapForGm(sceneId = "") {
+  if (!game.user?.isGM) return {};
+  const sid = String(sceneId ?? game.scenes?.viewed?.id ?? canvas?.scene?.id ?? "").trim();
+  const sceneDoc = sid
+    ? (game.scenes?.get?.(sid) ?? (String(game.scenes?.viewed?.id ?? "") === sid ? game.scenes?.viewed : null))
+    : (game.scenes?.viewed ?? null);
+  if (!sceneDoc) return {};
+
+  const tokens = Array.from(sceneDoc?.tokens?.contents ?? sceneDoc?.tokens ?? []);
+  const actors = Array.from(game.actors?.filter?.((a) => a?.type === "character" && a.hasPlayerOwner) ?? []);
+  const byActorId = {};
+
+  for (const actor of actors) {
+    const actorId = String(actor?.id ?? "").trim();
+    if (!actorId) continue;
+    const actorTokens = tokens.filter((t) => String(t?.actorId ?? "") === actorId && !t?.hidden);
+    if (!actorTokens.length) {
+      byActorId[actorId] = {
+        locked: true,
+        reason: "Your token is not on the GM's currently viewed scene."
+      };
+      continue;
+    }
+    const visible = actorTokens.some((t) => isSsTokenVisibleInGmViewport(t));
+    byActorId[actorId] = visible
+      ? { locked: false, reason: "" }
+      : { locked: true, reason: "Your token is outside the GM's current view." };
+  }
+
+  return byActorId;
+}
+
+function emitSsDpadViewportLockStateFromGm(sceneId = "") {
+  if (!game.user?.isGM) return;
+  const sid = String(sceneId ?? game.scenes?.viewed?.id ?? canvas?.scene?.id ?? "").trim();
+  emitSsSocketMessage({
+    type: "ssDpadViewportLock",
+    sceneId: sid,
+    byActorId: buildSsDpadViewportLockMapForGm(sid),
+    at: Date.now(),
+    gmUserId: game.user?.id ?? null
+  });
+}
+
 function queueSsTargetUiSyncFromGm(sceneId = "") {
   if (!game.user?.isGM) return;
   const sid = String(
@@ -2431,6 +2712,22 @@ function queueSsTargetUiSyncFromGm(sceneId = "") {
     ssTargetUiSyncEmitState.timer = null;
     emitSsTargetUiSyncFromGm(ssTargetUiSyncEmitState.sceneId || sid);
   }, 60);
+}
+
+function queueSsDpadViewportLockSyncFromGm(sceneId = "") {
+  if (!game.user?.isGM) return;
+  const sid = String(
+    sceneId
+    ?? game.scenes?.viewed?.id
+    ?? canvas?.scene?.id
+    ?? ""
+  ).trim();
+  if (sid) ssDpadViewportEmitState.sceneId = sid;
+  if (ssDpadViewportEmitState.timer) window.clearTimeout(ssDpadViewportEmitState.timer);
+  ssDpadViewportEmitState.timer = window.setTimeout(() => {
+    ssDpadViewportEmitState.timer = null;
+    emitSsDpadViewportLockStateFromGm(ssDpadViewportEmitState.sceneId || sid);
+  }, 90);
 }
 
 function ensurePlayerPauseBanner() {
@@ -2564,8 +2861,81 @@ function getActiveGmIds() {
 }
 
 const ssNoGmDialogState = globalThis.__SS_NO_GM_DIALOG_STATE__ ?? (globalThis.__SS_NO_GM_DIALOG_STATE__ = {
-  lastShownAt: 0
+  lastShownAt: 0,
+  overlayEl: null,
+  titleEl: null,
+  messageEl: null
 });
+const ssPendingRestDialogLabels = globalThis.__SS_PENDING_REST_DIALOG_LABELS__ ?? (globalThis.__SS_PENDING_REST_DIALOG_LABELS__ = []);
+
+function ensureSsNoActiveGmOverlay() {
+  const state = ssNoGmDialogState;
+  if (state.overlayEl instanceof HTMLElement && state.titleEl instanceof HTMLElement && state.messageEl instanceof HTMLElement) {
+    return state;
+  }
+
+  const overlay = document.createElement("div");
+  overlay.className = "ss-no-gm-overlay";
+  Object.assign(overlay.style, {
+    position: "fixed",
+    inset: "0",
+    zIndex: "2147483600",
+    display: "none",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "12px",
+    background: "rgba(6, 10, 16, 0.88)"
+  });
+
+  const card = document.createElement("section");
+  Object.assign(card.style, {
+    width: "min(92vw, 420px)",
+    display: "grid",
+    gap: "10px",
+    padding: "14px 14px 12px",
+    borderRadius: "10px",
+    border: "1px solid rgba(214, 181, 109, 0.5)",
+    background: "rgba(13, 19, 29, 0.98)",
+    boxShadow: "0 18px 36px rgba(0,0,0,.45)",
+    color: "#f2ead3"
+  });
+
+  const title = document.createElement("div");
+  title.style.cssText = "font-weight:800; font-size:1.02rem; letter-spacing:.02em;";
+  title.textContent = "GM Required";
+
+  const message = document.createElement("div");
+  message.style.cssText = "font-size:.95rem; line-height:1.35;";
+  message.textContent = "No GM is currently connected. Please try again once a GM is online.";
+
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.textContent = "Close";
+  Object.assign(closeBtn.style, {
+    minHeight: "2.2rem",
+    borderRadius: "8px",
+    border: "1px solid rgba(214, 181, 109, 0.45)",
+    background: "rgba(24, 30, 43, 0.92)",
+    color: "#f2ead3",
+    fontWeight: "700"
+  });
+  closeBtn.addEventListener("click", () => {
+    overlay.style.display = "none";
+  });
+
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) overlay.style.display = "none";
+  });
+
+  card.append(title, message, closeBtn);
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+
+  state.overlayEl = overlay;
+  state.titleEl = title;
+  state.messageEl = message;
+  return state;
+}
 
 async function showSsNoActiveGmDialog({
   title = "GM Required",
@@ -2576,31 +2946,18 @@ async function showSsNoActiveGmDialog({
   ssNoGmDialogState.lastShownAt = now;
 
   const safeAction = escapeHtml(String(actionLabel ?? "This action").trim() || "This action");
-  const content = `
-    <section class="ss-no-gm-dialog">
-      <p><strong>No GM is currently connected.</strong></p>
-      <p>${safeAction} needs a GM online to process changes.</p>
-      <p>Please let your GM know you want to make updates, then try again once the GM is logged in.</p>
-    </section>
-  `;
+  const heading = String(title ?? "GM Required").trim() || "GM Required";
+  const message = `No GM is currently connected. ${safeAction} needs a GM online to process changes.`;
 
-  if (globalThis.Dialog) {
-    const dialog = new Dialog({
-      title,
-      content,
-      buttons: {
-        close: {
-          label: "Close",
-          callback: () => true
-        }
-      },
-      default: "close"
-    });
-    dialog.render(true);
+  if (document?.body) {
+    const state = ensureSsNoActiveGmOverlay();
+    if (state.titleEl instanceof HTMLElement) state.titleEl.textContent = heading;
+    if (state.messageEl instanceof HTMLElement) state.messageEl.textContent = message;
+    if (state.overlayEl instanceof HTMLElement) state.overlayEl.style.display = "flex";
     return true;
   }
 
-  ui.notifications?.warn?.("No GM is connected. This action requires a GM online.");
+  ui.notifications?.warn?.(`${heading}: ${message}`);
   return false;
 }
 
@@ -2629,9 +2986,10 @@ function sendCommandToGmSocket(type, payload = {}) {
 
 function sendCommandToGmWhisper(content, options = {}) {
   const includeSelf = options.includeSelf === true;
+  const noGmActionLabel = String(options.noGmActionLabel ?? "This action").trim() || "This action";
   const gms = getActiveGmIds();
   if (!gms.length) {
-    ui.notifications.warn("No active GM connected.");
+    showSsNoActiveGmDialog({ actionLabel: noGmActionLabel });
     return false;
   }
 
@@ -2643,6 +3001,199 @@ function sendCommandToGmWhisper(content, options = {}) {
     ui.notifications.error("Failed to send command to GM.");
   });
   return true;
+}
+
+const ssJournalImageShareState = globalThis.__SS_JOURNAL_IMAGE_SHARE_STATE__ ?? (globalThis.__SS_JOURNAL_IMAGE_SHARE_STATE__ = {
+  boundRoots: new WeakSet(),
+  handledEvents: new WeakSet(),
+  documentBound: false,
+  activeViewer: null,
+  activeTimer: 0
+});
+
+function getRenderableRootElement(element) {
+  if (element instanceof HTMLElement) return element;
+  if (element?.[0] instanceof HTMLElement) return element[0];
+  return null;
+}
+
+function getSsJournalImageShareTitle(app, img) {
+  const alt = String(img?.alt ?? "").trim();
+  if (alt) return alt;
+  const imageTitle = String(img?.title ?? "").trim();
+  if (imageTitle) return imageTitle;
+  const appTitle = String(app?.title ?? "").trim();
+  if (appTitle) return `${appTitle} - Image`;
+  const windowTitle = String(img?.closest?.(".window-app")?.querySelector?.(".window-title")?.textContent ?? "").trim();
+  if (windowTitle) return `${windowTitle} - Image`;
+  return "Journal Image";
+}
+
+function isJournalBodyImageElement(img) {
+  if (!(img instanceof HTMLImageElement)) return false;
+  const journalWindow = img.closest(".sheet.journal-entry, .journal-sheet, .journal-entry-page, .journal-entry, [data-application-class*='Journal']");
+  if (!journalWindow) return false;
+  if (img.closest(".window-header, .journal-sidebar, .pages-list, nav.tabs, .sheet-tabs, .header-actions")) return false;
+  return true;
+}
+
+function handleJournalImageShareClick(event, app = null) {
+  if (!game.user?.isGM) return;
+  if (!event || event.button !== 0) return;
+
+  const handledEvents = ssJournalImageShareState.handledEvents instanceof WeakSet
+    ? ssJournalImageShareState.handledEvents
+    : (ssJournalImageShareState.handledEvents = new WeakSet());
+  if (handledEvents.has(event)) return;
+
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const img = target.closest("img");
+  if (!(img instanceof HTMLImageElement)) return;
+  if (!isJournalBodyImageElement(img)) return;
+
+  const src = String(img.currentSrc || img.src || "").trim();
+  if (!src) return;
+
+  handledEvents.add(event);
+  emitSsSocketMessage({
+    type: "ssJournalImageShow",
+    src,
+    title: getSsJournalImageShareTitle(app, img),
+    userId: game.user?.id ?? null,
+    timestamp: Date.now()
+  });
+}
+
+function bindGlobalJournalImageShareListener() {
+  if (!game.user?.isGM) return;
+  if (!isSheetSidekickModuleActive()) return;
+  if (ssJournalImageShareState.documentBound) return;
+
+  const onDocumentClick = (event) => {
+    handleJournalImageShareClick(event, null);
+  };
+  document.addEventListener("click", onDocumentClick, true);
+  ssJournalImageShareState.documentBound = true;
+  ssJournalImageShareState.documentClickHandler = onDocumentClick;
+}
+
+function getSsJournalImageDisplaySeconds() {
+  const raw = Number(getSheetSidekickSetting("journalImageDisplaySeconds", 20));
+  if (!Number.isFinite(raw)) return 20;
+  return Math.max(1, Math.min(120, Math.round(raw)));
+}
+
+function clearSsSharedJournalImageAutoHide() {
+  const timer = Number(ssJournalImageShareState.activeTimer ?? 0);
+  if (timer) {
+    window.clearTimeout(timer);
+    ssJournalImageShareState.activeTimer = 0;
+  }
+}
+
+function closeSsSharedJournalImageViewer() {
+  clearSsSharedJournalImageAutoHide();
+  const viewer = ssJournalImageShareState.activeViewer ?? null;
+  ssJournalImageShareState.activeViewer = null;
+  if (!viewer) return;
+  try {
+    if (typeof viewer.close === "function") viewer.close();
+    else if (typeof viewer.render === "function") viewer.render(false);
+  } catch (_err) {
+    // noop
+  }
+}
+
+function scheduleSsSharedJournalImageAutoHide(viewer) {
+  clearSsSharedJournalImageAutoHide();
+  ssJournalImageShareState.activeViewer = viewer ?? null;
+  const seconds = getSsJournalImageDisplaySeconds();
+  ssJournalImageShareState.activeTimer = window.setTimeout(() => {
+    closeSsSharedJournalImageViewer();
+  }, seconds * 1000);
+}
+
+function showSsSharedJournalImageForPlayer(data = {}) {
+  const src = String(data?.src ?? "").trim();
+  if (!src) return;
+
+  const title = String(data?.title ?? "").trim() || "Journal Image";
+  closeSsSharedJournalImageViewer();
+  const ImagePopoutCtor = globalThis.ImagePopout;
+  if (typeof ImagePopoutCtor === "function") {
+    try {
+      const popout = new ImagePopoutCtor(src, { title, shareable: false });
+      popout.render(true);
+      scheduleSsSharedJournalImageAutoHide(popout);
+      return;
+    } catch (_errPrimary) {
+      try {
+        const popout = new ImagePopoutCtor({ src, title, shareable: false });
+        popout.render(true);
+        scheduleSsSharedJournalImageAutoHide(popout);
+        return;
+      } catch (_errFallback) {
+        // fall through to dialog fallback below
+      }
+    }
+  }
+
+  if (globalThis.Dialog) {
+    const safeSrc = escapeHtml(src);
+    const safeTitle = escapeHtml(title);
+    const dlg = new Dialog({
+      title: safeTitle,
+      content: `<div class="ss-shared-journal-image"><img src="${safeSrc}" alt="${safeTitle}" style="max-width:100%;height:auto;" /></div>`,
+      buttons: {
+        close: {
+          label: "Close"
+        }
+      },
+      default: "close"
+    });
+    dlg.render(true);
+    scheduleSsSharedJournalImageAutoHide(dlg);
+  }
+}
+
+function bindVanillaJournalImageShare(app, element) {
+  try {
+    if (!game.user?.isGM) return;
+    if (!isSheetSidekickModuleActive()) return;
+
+    const root = getRenderableRootElement(element);
+    if (!(root instanceof HTMLElement)) return;
+    if (ssJournalImageShareState.boundRoots.has(root)) return;
+
+    const onClick = (event) => {
+      handleJournalImageShareClick(event, app);
+    };
+
+    const iframeClick = (event) => {
+      handleJournalImageShareClick(event, app);
+    };
+
+    const iframeDocs = [];
+    root.querySelectorAll("iframe").forEach((frame) => {
+      const frameDoc = frame?.contentDocument;
+      if (!(frameDoc instanceof Document)) return;
+      frameDoc.addEventListener("click", iframeClick, true);
+      iframeDocs.push(frameDoc);
+    });
+
+    bindGlobalJournalImageShareListener();
+
+    root.addEventListener("click", onClick, true);
+    ssJournalImageShareState.boundRoots.add(root);
+    app.once?.("close", () => {
+      root.removeEventListener("click", onClick, true);
+      iframeDocs.forEach((frameDoc) => frameDoc.removeEventListener("click", iframeClick, true));
+      ssJournalImageShareState.boundRoots.delete(root);
+    });
+  } catch (err) {
+    console.error("Sheet Sidekick journal image share bind failed:", err);
+  }
 }
 
 function sendUseInfoToGmWhisper(actor, item, slotLevel = null, ammoItemId = null) {
@@ -2879,6 +3430,101 @@ function inferAbilityKeyFromText(text) {
   return "";
 }
 
+function formatSignedModifier(value) {
+  const numeric = parseNumericValue(value);
+  if (numeric === null) return "";
+  return numeric >= 0 ? `+${numeric}` : `${numeric}`;
+}
+
+function resolveRollRequestModifier(actor, rollRequest) {
+  if (!actor || !rollRequest) return { label: "Roll", kindLabel: "Roll", modifier: null };
+  const kind = String(rollRequest.kind ?? "").trim().toLowerCase();
+  const key = String(rollRequest.key ?? "").trim().toLowerCase();
+  const rollData = actor?.getRollData?.() ?? {};
+  const fallbackLabel = String(rollRequest.label ?? "Roll").trim() || "Roll";
+
+  if (kind === "initiative") {
+    return {
+      label: "Initiative",
+      kindLabel: "Initiative",
+      modifier: pickFirstNumeric(
+        actor?.system?.attributes?.init?.total,
+        actor?.system?.attributes?.init?.mod,
+        actor?.system?.attributes?.init?.value,
+        rollData?.attributes?.init?.total,
+        rollData?.attributes?.init?.mod,
+        rollData?.attributes?.init?.value
+      )
+    };
+  }
+
+  if (kind === "skill") {
+    const skill = actor?.system?.skills?.[key] ?? null;
+    const label = String(skill?.label ?? fallbackLabel).trim() || fallbackLabel;
+    return {
+      label,
+      kindLabel: "Check",
+      modifier: pickFirstNumeric(
+        skill?.total,
+        skill?.mod,
+        skill?.value,
+        rollData?.skills?.[key]?.total,
+        rollData?.skills?.[key]?.mod,
+        rollData?.skills?.[key]?.value
+      )
+    };
+  }
+
+  if (kind === "tool") {
+    const tool = actor?.system?.tools?.[key] ?? null;
+    const toolItem = actor?.items?.get?.(String(rollRequest.key ?? "").trim()) ?? null;
+    const label = String(toolItem?.name ?? fallbackLabel).trim() || fallbackLabel;
+    return {
+      label,
+      kindLabel: "Check",
+      modifier: pickFirstNumeric(
+        tool?.total,
+        tool?.mod,
+        tool?.value,
+        rollData?.tools?.[key]?.total,
+        rollData?.tools?.[key]?.mod,
+        rollData?.tools?.[key]?.value
+      )
+    };
+  }
+
+  if (kind === "abilitycheck" || kind === "abilitysave") {
+    const ability = actor?.system?.abilities?.[key] ?? null;
+    const abilityLabel = SS_ABILITY_LABELS[key] ?? fallbackLabel;
+    if (kind === "abilitysave") {
+      const saveTotal = pickFirstNumeric(ability?.save, rollData?.abilities?.[key]?.save);
+      const saveBonus = pickFirstNumeric(ability?.saveBonus, rollData?.abilities?.[key]?.saveBonus);
+      const baseMod = pickFirstNumeric(ability?.mod, rollData?.abilities?.[key]?.mod);
+      return {
+        label: `${abilityLabel} Save`,
+        kindLabel: "Save",
+        modifier: saveTotal ?? ((baseMod !== null || saveBonus !== null) ? ((baseMod ?? 0) + (saveBonus ?? 0)) : null)
+      };
+    }
+    return {
+      label: `${abilityLabel} Check`,
+      kindLabel: "Check",
+      modifier: pickFirstNumeric(ability?.mod, rollData?.abilities?.[key]?.mod)
+    };
+  }
+
+  return { label: fallbackLabel, kindLabel: "Roll", modifier: null };
+}
+
+function buildRollRequestHint(actor, rollRequest) {
+  const meta = resolveRollRequestModifier(actor, rollRequest);
+  const signedMod = formatSignedModifier(meta.modifier);
+  if (signedMod) {
+    return `${meta.kindLabel}: ${meta.label} (d20 ${signedMod})`;
+  }
+  return `${meta.kindLabel}: ${meta.label} (d20 + your normal modifier)`;
+}
+
 function extractRollRequestFromElement(target, actor) {
   if (!(target instanceof HTMLElement)) return null;
   const rollable = target.closest("[data-action='roll'][data-type], .rollable[data-action='roll']");
@@ -2935,6 +3581,11 @@ function extractRollRequestFromElement(target, actor) {
 async function confirmTapToRoll(actor, rollRequest) {
   if (!actor || !rollRequest) return { confirmed: false };
   const label = String(rollRequest.label ?? "Roll");
+  const suggestedRoll = buildRollRequestHint(actor, rollRequest);
+  const rollHintsHtml = buildRollHintsHtml([suggestedRoll], {
+    title: "Suggested Roll Check",
+    helperText: "This is a prompt only. Roll the check below and add the shown modifier."
+  });
   const title = "Roll Check?";
   const content = `
     <section class="ss-use-confirm">
@@ -2942,6 +3593,7 @@ async function confirmTapToRoll(actor, rollRequest) {
         <span class="ss-hint-icon-wrap"><img class="ss-hint-icon" src="${escapeHtml(SS_HINT_ICONS.save)}" alt=""></span>
         <p class="ss-use-confirm-title">Roll <strong>${escapeHtml(label)}</strong> for <strong>${escapeHtml(actor.name ?? "Actor")}</strong>?</p>
       </header>
+      <div class="ss-roll-hints-wrap">${rollHintsHtml}</div>
     </section>
   `;
 
@@ -2960,7 +3612,7 @@ async function confirmTapToRoll(actor, rollRequest) {
     return { confirmed: !!result };
   }
 
-  return { confirmed: !!globalThis.confirm?.(`Roll ${label}?`) };
+  return { confirmed: !!globalThis.confirm?.(`Roll ${label}?\n${suggestedRoll}`) };
 }
 
 function sendRollInfoToGmWhisper(actor, rollRequest) {
@@ -2979,6 +3631,253 @@ function sendRollInfoToGmWhisper(actor, rollRequest) {
     console.error("Sheet Sidekick roll info whisper failed:", err);
   });
   return true;
+}
+
+function getSsShortRestHitDiceData(actor) {
+  const hd = actor?.system?.attributes?.hd ?? null;
+  if (!hd) return { total: 0, entries: [], summary: "No hit dice available." };
+
+  const entries = [];
+  if (hd?.bySize && typeof hd.bySize === "object") {
+    Object.entries(hd.bySize).forEach(([denom, amount]) => {
+      const count = Number(amount ?? 0);
+      const label = String(denom ?? "").trim();
+      if (!label || !Number.isFinite(count) || count <= 0) return;
+      entries.push({ denomination: label, count, label: `${label} x${count}` });
+    });
+  }
+
+  if (!entries.length) {
+    const total = Number(hd?.value ?? 0);
+    const denomNumber = Number(hd?.denomination ?? 0);
+    if (Number.isFinite(total) && total > 0 && Number.isFinite(denomNumber) && denomNumber > 0) {
+      const label = `d${denomNumber}`;
+      entries.push({ denomination: label, count: total, label: `${label} x${total}` });
+    }
+  }
+
+  const total = entries.reduce((sum, entry) => sum + entry.count, 0);
+  return {
+    total,
+    entries,
+    summary: entries.length ? entries.map((entry) => entry.label).join(", ") : "No hit dice available."
+  };
+}
+
+function getSsRestButtonLabel(restType) {
+  return String(restType ?? "").trim().toLowerCase() === "long" ? "Long Rest" : "Short Rest";
+}
+
+function buildSsRestButtonHtml(restType) {
+  const normalized = String(restType ?? "").trim().toLowerCase() === "long" ? "long" : "short";
+  const iconClass = normalized === "long" ? "fa-tent" : "fa-campfire";
+  const label = getSsRestButtonLabel(normalized);
+  return `
+    <button
+      type="button"
+      class="ss-rest-trigger"
+      data-ss-rest="${escapeHtml(normalized)}"
+      aria-label="${escapeHtml(label)}"
+      title="${escapeHtml(label)}"
+    >
+      <i class="fas ${escapeHtml(iconClass)}" aria-hidden="true"></i>
+      <span class="ss-rest-trigger-label">${escapeHtml(label)}</span>
+    </button>
+  `;
+}
+
+function ensureSheetSidekickRestButtons(scope, actor) {
+  if (!(scope instanceof HTMLElement) || !actor || actor.type !== "character") return;
+
+  const buttonsBar = scope.querySelector(".sheet-header .sheet-header-buttons");
+  if (!(buttonsBar instanceof HTMLElement)) return;
+
+  const nativeShort = buttonsBar.querySelector("button[data-action='shortRest'], button[aria-label*='Short Rest']");
+  const nativeLong = buttonsBar.querySelector("button[data-action='longRest'], button[aria-label*='Long Rest']");
+  const wrap = buttonsBar.querySelector(".ss-rest-actions");
+
+  if (!(nativeShort instanceof HTMLElement) && !(nativeLong instanceof HTMLElement)) {
+    wrap?.remove();
+    return;
+  }
+
+  [nativeShort, nativeLong].forEach((btn) => {
+    if (!(btn instanceof HTMLElement)) return;
+    btn.classList.add("ss-native-rest-btn");
+    btn.setAttribute("aria-hidden", "true");
+    btn.tabIndex = -1;
+  });
+
+  const targetWrap = wrap instanceof HTMLElement ? wrap : document.createElement("div");
+  targetWrap.className = "ss-rest-actions";
+  targetWrap.innerHTML = [
+    nativeShort instanceof HTMLElement ? buildSsRestButtonHtml("short") : "",
+    nativeLong instanceof HTMLElement ? buildSsRestButtonHtml("long") : ""
+  ].join("");
+
+  const logoutBtn = buttonsBar.querySelector("button.ss-header-logout-btn");
+  if (!targetWrap.parentElement) {
+    if (logoutBtn instanceof HTMLElement) buttonsBar.insertBefore(targetWrap, logoutBtn);
+    else buttonsBar.appendChild(targetWrap);
+  } else if (logoutBtn instanceof HTMLElement && targetWrap.nextElementSibling !== logoutBtn) {
+    buttonsBar.insertBefore(targetWrap, logoutBtn);
+  }
+}
+
+function buildSsRestPrompt(actor, restType) {
+  const normalized = String(restType ?? "").trim().toLowerCase() === "long" ? "long" : "short";
+  const label = getSsRestButtonLabel(normalized);
+  const actorName = String(actor?.name ?? "Actor").trim() || "Actor";
+  const dialogKey = `${actor?.id ?? "actor"}:${normalized}:${Date.now()}`;
+  const conMod = pickFirstNumeric(
+    actor?.system?.abilities?.con?.mod,
+    actor?.getRollData?.()?.abilities?.con?.mod
+  );
+  const signedCon = formatSignedModifier(conMod);
+  const hitDice = getSsShortRestHitDiceData(actor);
+  const iconClass = normalized === "long" ? "fa-tent" : "fa-campfire";
+
+  const overviewLines = normalized === "long"
+    ? [
+      "The GM will run the normal D&D5e long-rest workflow for this character.",
+      "Hit points, spell slots, hit dice, and other resources recover according to your world's configured rest rules."
+    ]
+    : [
+      "The GM will run the normal D&D5e short-rest workflow for this character.",
+      hitDice.total > 0
+        ? `You can spend hit dice to heal during that workflow. Available hit dice: ${hitDice.summary}.`
+        : "You currently do not have any hit dice available to spend during the short rest workflow."
+    ];
+
+  const hintCards = normalized === "long"
+    ? [
+      "Workflow: Long-rest recovery uses your world's configured D&D5e rules.",
+      "Resources: Spell slots, hit points, and long-rest features recover if allowed by those rules."
+    ]
+    : [
+      `Hit Dice: ${hitDice.summary}`,
+      `Healing: Each hit die spent adds Constitution ${signedCon || "+0"} to the roll.`,
+      "Resources: Short-rest features and item uses recover if your world rules allow it."
+    ];
+
+  const helperText = normalized === "long"
+    ? "This sends a rest request to the GM for this character."
+    : "This sends a short-rest request to the GM, then the normal short-rest workflow handles hit dice.";
+  const rollHintsHtml = buildRollHintsHtml(hintCards, {
+    title: `${label} Summary`,
+    helperText
+  });
+  const bodyHtml = overviewLines.map((line) => `<p class="ss-rest-confirm-copy">${escapeHtml(line)}</p>`).join("");
+
+  const content = `
+    <section class="ss-use-confirm ss-rest-confirm" data-ss-hints-key="${escapeHtml(dialogKey)}">
+      <header class="ss-use-confirm-header">
+        <span class="ss-rest-confirm-icon" aria-hidden="true"><i class="fas ${escapeHtml(iconClass)}"></i></span>
+        <div class="ss-use-confirm-title-row">
+          <p class="ss-use-confirm-title">Start <strong>${escapeHtml(label)}</strong> for <strong>${escapeHtml(actorName)}</strong>?</p>
+        </div>
+      </header>
+      <div class="ss-use-confirm-body">
+        <div class="ss-rest-confirm-copy-wrap">${bodyHtml}</div>
+        <div class="ss-roll-hints-wrap">${rollHintsHtml}</div>
+      </div>
+    </section>
+  `;
+
+  return { dialogKey, label, content };
+}
+
+async function confirmSsRest(actor, restType) {
+  if (!actor) return { confirmed: false, restType: "short" };
+  const normalized = String(restType ?? "").trim().toLowerCase() === "long" ? "long" : "short";
+  const prompt = buildSsRestPrompt(actor, normalized);
+  const fallbackText = normalized === "long"
+    ? "The GM will run the normal long-rest workflow for this character."
+    : "The GM will run the normal short-rest workflow for this character, including hit-die spending if available.";
+
+  if (globalThis.Dialog?.confirm) {
+    const resultPromise = Dialog.confirm({
+      title: prompt.label,
+      content: prompt.content,
+      yes: () => ({ confirmed: true, restType: normalized }),
+      no: () => ({ confirmed: false, restType: normalized }),
+      defaultYes: false
+    }, {
+      width: 560,
+      classes: ["ss-use-confirm-dialog", "ss-rest-confirm-dialog"]
+    });
+
+    window.setTimeout(() => {
+      const scope = document.querySelector(`.ss-rest-confirm[data-ss-hints-key='${prompt.dialogKey}']`);
+      const dialogRoot = scope?.closest?.(".app.window-app.dialog, dialog.application");
+      if (dialogRoot instanceof HTMLElement) dialogRoot.classList.add("ss-use-confirm-dialog", "ss-rest-confirm-dialog");
+      setupUseConfirmScrollCue(prompt.dialogKey);
+    }, 40);
+
+    const result = await resultPromise;
+    const openScope = document.querySelector(`.ss-rest-confirm[data-ss-hints-key='${prompt.dialogKey}']`);
+    const openRoot = openScope?.closest?.(".app.window-app.dialog, dialog.application");
+    if (openRoot?.__ssUseConfirmScrollCueCleanup instanceof Function) {
+      try { openRoot.__ssUseConfirmScrollCueCleanup(); } catch (_err) { /* noop */ }
+      delete openRoot.__ssUseConfirmScrollCueCleanup;
+    }
+    if (result && typeof result === "object" && "confirmed" in result) return result;
+    return { confirmed: !!result, restType: normalized };
+  }
+
+  return {
+    confirmed: !!globalThis.confirm?.(`${prompt.label}?\n${fallbackText}`),
+    restType: normalized
+  };
+}
+
+function sendRestInfoToGmWhisper(actor, restType) {
+  const gms = getActiveGmIds();
+  if (!gms.length) return false;
+  if (!actor) return false;
+
+  const normalized = String(restType ?? "").trim().toLowerCase() === "long" ? "long" : "short";
+  const label = getSsRestButtonLabel(normalized);
+  const hitDice = normalized === "short" ? getSsShortRestHitDiceData(actor) : null;
+  const detailLine = normalized === "short"
+    ? `<p><strong>Available Hit Dice:</strong> ${escapeHtml(hitDice?.summary ?? "None")}</p>`
+    : "";
+  const content = `
+    <section class="ss-use-gm-whisper">
+      <p><strong>[Sheet Sidekick REST]</strong> ${escapeHtml(String(actor.name ?? "Actor"))} requested <strong>${escapeHtml(label)}</strong></p>
+      ${detailLine}
+    </section>
+  `;
+  ChatMessage.create({ content, whisper: gms }).catch((err) => {
+    console.error("Sheet Sidekick rest info whisper failed:", err);
+  });
+  return true;
+}
+
+function queueSsPendingRestDialogLabel(actor, restType) {
+  const actorId = String(actor?.id ?? "").trim();
+  if (!actorId) return;
+  ssPendingRestDialogLabels.push({
+    actorId,
+    actorName: String(actor?.name ?? "Actor").trim() || "Actor",
+    restType: String(restType ?? "").trim().toLowerCase() === "long" ? "long" : "short",
+    expiresAt: Date.now() + 15000
+  });
+  while (ssPendingRestDialogLabels.length > 8) ssPendingRestDialogLabels.shift();
+}
+
+function consumeSsPendingRestDialogLabel(actorId, restType) {
+  const now = Date.now();
+  for (let i = ssPendingRestDialogLabels.length - 1; i >= 0; i -= 1) {
+    if (Number(ssPendingRestDialogLabels[i]?.expiresAt ?? 0) <= now) {
+      ssPendingRestDialogLabels.splice(i, 1);
+    }
+  }
+  const aid = String(actorId ?? "").trim();
+  const normalized = String(restType ?? "").trim().toLowerCase() === "long" ? "long" : "short";
+  const idx = ssPendingRestDialogLabels.findIndex((entry) => entry.actorId === aid && entry.restType === normalized);
+  if (idx < 0) return null;
+  return ssPendingRestDialogLabels.splice(idx, 1)[0] ?? null;
 }
 
 function waitForRenderedItemTooltip(timeoutMs = 1400) {
@@ -3146,6 +4045,40 @@ function setupLockedTooltipScrollCue(dialogApp) {
     scroller.removeEventListener("scroll", update);
     root.classList.remove("ss-has-scroll-more");
   });
+}
+
+function setupUseConfirmScrollCue(dialogKey) {
+  const scope = document.querySelector(`.ss-use-confirm[data-ss-hints-key='${dialogKey}']`);
+  if (!(scope instanceof HTMLElement)) return;
+
+  const root = scope.closest(".app.window-app.dialog, dialog.application");
+  if (!(root instanceof HTMLElement)) return;
+
+  const scroller = root.querySelector("section.window-content > .dialog-content")
+    ?? root.querySelector(".window-content > .dialog-content")
+    ?? root.querySelector(".window-content");
+  if (!(scroller instanceof HTMLElement)) return;
+
+  const update = () => {
+    const scrollable = scroller.scrollHeight > (scroller.clientHeight + 8);
+    const atBottom = (scroller.scrollTop + scroller.clientHeight) >= (scroller.scrollHeight - 3);
+    root.classList.toggle("ss-has-scroll-more", scrollable && !atBottom);
+  };
+
+  scroller.scrollTop = 0;
+  update();
+  scroller.addEventListener("scroll", update, { passive: true });
+
+  if (root.__ssUseConfirmScrollCueCleanup instanceof Function) {
+    try { root.__ssUseConfirmScrollCueCleanup(); } catch (_err) { /* noop */ }
+  }
+  root.__ssUseConfirmScrollCueCleanup = () => {
+    scroller.removeEventListener("scroll", update);
+    root.classList.remove("ss-has-scroll-more");
+  };
+
+  window.setTimeout(update, 80);
+  window.setTimeout(update, 180);
 }
 
 function getElementZIndex(el) {
@@ -3499,6 +4432,10 @@ const ssFormRefreshState = globalThis.__SS_FORM_REFRESH_STATE__ ?? (globalThis._
   timer: null
 });
 const ssTargetUiSyncEmitState = globalThis.__SS_TARGET_UI_SYNC_EMIT_STATE__ ?? (globalThis.__SS_TARGET_UI_SYNC_EMIT_STATE__ = {
+  timer: null,
+  sceneId: ""
+});
+const ssDpadViewportEmitState = globalThis.__SS_DPAD_VIEWPORT_EMIT_STATE__ ?? (globalThis.__SS_DPAD_VIEWPORT_EMIT_STATE__ = {
   timer: null,
   sceneId: ""
 });
@@ -4940,7 +5877,9 @@ Hooks.once("ready", () => {
   // Initial render
   updateVisuals();
   emitPlayerControlsStateFromGm();
+  queueSsDpadViewportLockSyncFromGm();
   setTimeout(emitPlayerControlsStateFromGm, 400);
+  setTimeout(() => queueSsDpadViewportLockSyncFromGm(), 450);
 
   // Click Handler
   toggleBtn.addEventListener("click", async () => {
@@ -4950,6 +5889,7 @@ Hooks.once("ready", () => {
     await game.user.setFlag("world", "dpadEnabled", newState);
     await game.user.setFlag("world", "dpadRefreshAt", Date.now());
     emitPlayerControlsStateFromGm();
+    queueSsDpadViewportLockSyncFromGm();
     updateVisuals();
 
     if (newState) ui.notifications.info("Player Controls: Enabled");
@@ -4961,6 +5901,8 @@ Hooks.on("userConnected", () => {
   if (!game.user?.isGM) return;
   setTimeout(emitPlayerControlsStateFromGm, 250);
   setTimeout(emitPlayerControlsStateFromGm, 1000);
+  setTimeout(() => queueSsDpadViewportLockSyncFromGm(), 300);
+  setTimeout(() => queueSsDpadViewportLockSyncFromGm(), 1100);
 });
 
 // 2. PLAYER UI INJECTION
@@ -5012,16 +5954,29 @@ function injectSheetDpad(app, element) {
     const REPEAT_DELAY_MS = 250;
     const REPEAT_MS = 150;
     const MAX_STEPS = 20;
-    let lastTurnLockNoticeAt = 0;
+    let lastLockNoticeAt = 0;
 
     const warnTurnLocked = (fallbackMessage = "You can move and target only on your turn.") => {
       const now = Date.now();
-      if ((now - lastTurnLockNoticeAt) < 1200) return;
-      lastTurnLockNoticeAt = now;
+      if ((now - lastLockNoticeAt) < 1200) return;
+      lastLockNoticeAt = now;
+      ui.notifications?.warn?.(fallbackMessage);
+    };
+
+    const warnViewportLocked = (fallbackMessage = "Movement is locked while your token is outside the GM view.") => {
+      const now = Date.now();
+      if ((now - lastLockNoticeAt) < 1200) return;
+      lastLockNoticeAt = now;
       ui.notifications?.warn?.(fallbackMessage);
     };
 
     function dispatchDpad(direction) {
+      const viewportLock = getPlayerDpadViewportLockForActor(actor?.id ?? "");
+      if (viewportLock.locked) {
+        warnViewportLocked(viewportLock.reason || "Movement is locked while your token is outside the GM view.");
+        return;
+      }
+
       const turnAccess = getCombatTurnAccessForUser(game.user?.id ?? null, {
         combat: getActiveCombatForViewedScene()
       });
@@ -5036,7 +5991,7 @@ function injectSheetDpad(app, element) {
         timestamp: ts,
         userId: game.user?.id ?? null
       });
-      if (!sent) sendCommandToGmWhisper(`!dpad ${direction} ${ts}`);
+      if (!sent) sendCommandToGmWhisper(`!dpad ${direction} ${ts}`, { noGmActionLabel: "Moving your character" });
     }
 
     function makeBtn(iconClass, ariaLabel, col, row, dir) {
@@ -5222,6 +6177,7 @@ function injectSheetDpad(app, element) {
 
           rows.push({
             tokenId: tokenDoc.id,
+            actorId: String(tokenDoc.actorId ?? combatant.actor?.id ?? ""),
             name: tokenDoc.name ?? combatant.name ?? "Unknown",
             img: tokenDoc.texture?.src ?? combatant.img ?? combatant.actor?.img ?? "",
             stateHtml: stateMeta.statusHtml ?? "",
@@ -5411,9 +6367,19 @@ function injectSheetDpad(app, element) {
         const rangeText = Number.isFinite(rangeLimitFeet) && rangeLimitFeet > 0 ? ` within ${rangeLimitFeet} ft` : "";
         targetStatus.textContent = `Select (${targetText}) target(s)${rangeText} and Apply.`;
       }
+      const currentActorId = String(actor?.id ?? "").trim();
+      const currentCharacterId = String(game.user?.character?.id ?? "").trim();
+      const isSelfRow = (row) => {
+        const rowActorId = String(row?.actorId ?? "").trim();
+        if (!rowActorId) return false;
+        if (currentActorId && rowActorId === currentActorId) return true;
+        if (currentCharacterId && rowActorId === currentCharacterId) return true;
+        return false;
+      };
       rows.forEach((row) => {
         const rowRef = row.tokenId ? `token:${row.tokenId}` : (row.actorId ? `actor:${row.actorId}` : "");
         const isSelected = !!(rowRef && selected.has(rowRef));
+        const selfTagHtml = isSelfRow(row) ? '<span class="ss-target-you">(YOU)</span>' : "";
         const feetNum = row.tokenId ? getDistanceFeet(sceneId, row.tokenId) : null;
         const feetLabel = Number.isFinite(feetNum) ? `${feetNum} ft` : "";
         const outOfRange = !!(
@@ -5435,7 +6401,7 @@ function injectSheetDpad(app, element) {
             ${allowTargetingActions ? `<input type="checkbox" class="ss-target-check" value="${rowRef}" ${isSelected ? "checked" : ""} ${rowDisabled ? "disabled" : ""}>` : ""}
             <span class="ss-target-avatar"${row.img ? ` style="background-image:url('${row.img}')"` : ""}></span>
             <span class="ss-target-name">
-              <span class="ss-target-name-main">${row.name}</span>
+              <span class="ss-target-name-main">${row.name} ${selfTagHtml}</span>
               ${row.stateHtml || ""}
               ${feetLabel ? `<small class="ss-target-distance">${escapeHtml(feetLabel)}${outOfRange ? " - out of range" : ""}</small>` : ""}
             </span>
@@ -5474,10 +6440,10 @@ function injectSheetDpad(app, element) {
       if (!navHeight) return;
 
       const navTopDistanceFromContainerBottom = Math.max(0, Math.ceil((containerRect?.bottom || 0) - (navRect?.top || 0)));
+      const stickyPaddingBottomPx = Math.max(0, Math.round(parseFloat(window.getComputedStyle(stickyContainer).paddingBottom || "0") || 0));
       const contentCushionPx = narrowPhoneLayout ? 0 : 6;
-      const abilityGapPx = narrowPhoneLayout ? 0 : 6;
       const nextBottomNavPadPx = Math.max(0, navTopDistanceFromContainerBottom + contentCushionPx);
-      const nextAbilityScoresBottomPx = Math.max(0, navTopDistanceFromContainerBottom + abilityGapPx);
+      const nextAbilityScoresBottomPx = Math.max(0, nextBottomNavPadPx - stickyPaddingBottomPx);
 
       if (Math.abs(nextBottomNavPadPx - lastBottomNavPadPx) > 1) {
         scope.style.setProperty("--ss-bottom-nav-pad", `${nextBottomNavPadPx}px`, "important");
@@ -5512,9 +6478,10 @@ function injectSheetDpad(app, element) {
       const fallbackRem = (rows * fallbackRowHeightRem) + ((rows - 1) * fallbackGapRem) + fallbackChromeRem;
       if (!hasMeasuredBottomNavOffsets) {
         scope.style.setProperty("--ss-bottom-nav-pad", `calc(${fallbackRem.toFixed(2)}rem + env(safe-area-inset-bottom, 0px))`);
+        const fallbackAbilityRem = Math.max(0, fallbackRem - (narrowPhoneLayout ? 0.9 : 0));
         scope.style.setProperty(
           "--ss-ability-scores-bottom",
-          `calc(${(fallbackRem + (narrowPhoneLayout ? 0.08 : 0.34)).toFixed(2)}rem + env(safe-area-inset-bottom, 0px))`
+          `calc(${fallbackAbilityRem.toFixed(2)}rem + env(safe-area-inset-bottom, 0px))`
         );
       }
 
@@ -5626,24 +6593,35 @@ function injectSheetDpad(app, element) {
       const turnAccess = getCombatTurnAccessForUser(game.user?.id ?? null, {
         combat: getActiveCombatForViewedScene()
       });
+      const viewportLock = getPlayerDpadViewportLockForActor(actor?.id ?? "");
       const dpadTurnLocked = !!(enabled && turnAccess.locked);
-      overlay.classList.toggle("ss-turn-locked", dpadTurnLocked);
-      dpadLockNote.hidden = !dpadTurnLocked;
+      const dpadViewLocked = !!(enabled && viewportLock.locked);
+      const dpadLocked = dpadTurnLocked || dpadViewLocked;
+      overlay.classList.toggle("ss-turn-locked", dpadLocked);
+      dpadLockNote.hidden = !dpadLocked;
       if (dpadTurnLocked) {
         const currentName = escapeHtml(turnAccess.currentCombatantName || "another combatant");
         dpadLockNote.innerHTML = `
           <div class="ss-dpad-lock-title">Movement Locked</div>
           <div class="ss-dpad-lock-text">Please wait for your turn.</div>
         `;
+      } else if (dpadViewLocked) {
+        dpadLockNote.innerHTML = `
+          <div class="ss-dpad-lock-title">Movement Locked</div>
+          <div class="ss-dpad-lock-text">${escapeHtml(viewportLock.reason || "Your token is outside the GM's current view.")}</div>
+        `;
       } else {
         dpadLockNote.textContent = "";
       }
       overlay.querySelectorAll(".ss-dpad-dir-btn").forEach((btn) => {
         if (!(btn instanceof HTMLButtonElement)) return;
-        btn.disabled = dpadTurnLocked;
-        btn.classList.toggle("ss-turn-locked", dpadTurnLocked);
+        btn.disabled = dpadLocked;
+        btn.classList.toggle("ss-turn-locked", dpadLocked);
         const baseTitle = String(btn.dataset.ssBaseTitle ?? btn.getAttribute("aria-label") ?? "Move");
-        btn.setAttribute("title", dpadTurnLocked ? `${baseTitle} (Wait for your turn)` : baseTitle);
+        const suffix = dpadTurnLocked
+          ? " (Wait for your turn)"
+          : (dpadViewLocked ? " (Token not in GM view)" : "");
+        btn.setAttribute("title", `${baseTitle}${suffix}`);
       });
 
       dpadTab.classList.remove("active");
@@ -5659,6 +6637,7 @@ function injectSheetDpad(app, element) {
       updateBottomNavLayout(enabled, canTarget, true);
       queueMeasuredBottomNavOffsets();
     };
+    scope.__ssSyncDpad = sync;
 
     const openTargetPanel = ({ openFromUse = false } = {}) => {
       const enabled = isDpadEnabledByGm();
@@ -5771,7 +6750,10 @@ function injectSheetDpad(app, element) {
           userId: game.user?.id ?? null
         });
         if (!sent) {
-          sendCommandToGmWhisper(`!ss-target ping ${sceneId} ${targetRef} ${ts} ${game.user.id}`, { includeSelf: true });
+          sendCommandToGmWhisper(`!ss-target ping ${sceneId} ${targetRef} ${ts} ${game.user.id}`, {
+            includeSelf: true,
+            noGmActionLabel: "Pinging targets"
+          });
         }
       });
 
@@ -5807,6 +6789,7 @@ function injectSheetDpad(app, element) {
         const sceneId = targetOverlay.dataset.ssSceneId || getCurrentSceneId();
         requestSsMapPingSnapshot({
           actorName: actor?.name ?? "",
+          actorId: actor?.id ?? "",
           sceneId
         });
       });
@@ -5875,6 +6858,7 @@ function injectSheetDpad(app, element) {
       restoreSsSheetZIndex(scope);
       overlay.remove();
       targetOverlay?.remove();
+      delete scope.__ssSyncDpad;
       delete scope.__ssRenderTargetPanel;
       if (ssDpadNavObserverByForm.has(scope)) {
         ssDpadNavObserverByForm.get(scope)?.disconnect();
@@ -5907,6 +6891,23 @@ Hooks.on("pauseGame", (...args) => {
   const pausedArg = args.find((a) => typeof a === "boolean");
   syncPlayerPauseBanner((typeof pausedArg === "boolean") ? pausedArg : !!game.paused);
 });
+
+function syncOpenSheetDpadLocks() {
+  if (game.user?.isGM) return;
+  const forms = document.querySelectorAll(SS_SHEET_FORM_SELECTOR);
+  forms.forEach((form) => {
+    const syncFn = form?.__ssSyncDpad;
+    if (typeof syncFn === "function") {
+      try { syncFn(); } catch (_err) { /* noop */ }
+      return;
+    }
+    try {
+      injectSheetDpad({ actor: resolveActorFromSheetScope(form, null), once: () => {} }, form);
+    } catch (_err) {
+      // noop
+    }
+  });
+}
 
 function refreshSheetSidekickForms() {
   if (game.user?.isGM) return;
@@ -6061,6 +7062,35 @@ Hooks.on("updateUser", (user, changed) => {
     ?? ""
   ).trim();
   queueSsTargetUiSyncFromGm(sceneId);
+});
+
+Hooks.on("canvasReady", () => {
+  if (!game.user?.isGM) return;
+  queueSsDpadViewportLockSyncFromGm();
+});
+
+Hooks.on("canvasPan", (_canvas, panData) => {
+  if (!game.user?.isGM) return;
+  const sid = String(panData?.scene?.id ?? panData?.sceneId ?? game.scenes?.viewed?.id ?? canvas?.scene?.id ?? "").trim();
+  queueSsDpadViewportLockSyncFromGm(sid);
+});
+
+Hooks.on("createToken", (tokenDoc) => {
+  if (!game.user?.isGM) return;
+  const sid = String(tokenDoc?.parent?.id ?? game.scenes?.viewed?.id ?? canvas?.scene?.id ?? "").trim();
+  queueSsDpadViewportLockSyncFromGm(sid);
+});
+
+Hooks.on("updateToken", (tokenDoc) => {
+  if (!game.user?.isGM) return;
+  const sid = String(tokenDoc?.parent?.id ?? game.scenes?.viewed?.id ?? canvas?.scene?.id ?? "").trim();
+  queueSsDpadViewportLockSyncFromGm(sid);
+});
+
+Hooks.on("deleteToken", (tokenDoc) => {
+  if (!game.user?.isGM) return;
+  const sid = String(tokenDoc?.parent?.id ?? game.scenes?.viewed?.id ?? canvas?.scene?.id ?? "").trim();
+  queueSsDpadViewportLockSyncFromGm(sid);
 });
 
 Hooks.on("createCombat", () => {
@@ -6394,12 +7424,43 @@ const ssMapPingSnapshotPlayerState = globalThis.__SS_MAP_PING_SNAPSHOT_PLAYER__ 
   hintEl: null,
   imageWrapEl: null,
   imageEl: null,
+  requestBtn: null,
   closeBtn: null,
   requestId: "",
   sceneId: "",
+  actorName: "",
+  actorId: "",
   waiting: false,
-  snapshotReady: false
+  snapshotReady: false,
+  view: {
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    pointers: new Map(),
+    dragPointerId: null,
+    pointerStartX: 0,
+    pointerStartY: 0,
+    pointerMoved: false,
+    dragging: false,
+    startPanX: 0,
+    startPanY: 0,
+    pinchDistance: 0,
+    pinchZoom: 1,
+    pinchCenterX: 0,
+    pinchCenterY: 0,
+    pinchPanX: 0,
+    pinchPanY: 0
+  }
 });
+
+function refreshSsMapPingSnapshotRequestButtonForPlayer() {
+  const state = ssMapPingSnapshotPlayerState;
+  const btn = state?.requestBtn;
+  if (!(btn instanceof HTMLElement)) return;
+  const hasActiveGm = getActiveGmIds().length > 0;
+  btn.style.display = hasActiveGm ? "" : "none";
+  if (!hasActiveGm) btn.disabled = true;
+}
 
 const ssMapPingSnapshotGmState = globalThis.__SS_MAP_PING_SNAPSHOT_GM__ ?? (globalThis.__SS_MAP_PING_SNAPSHOT_GM__ = {
   pending: new Map()
@@ -6411,6 +7472,123 @@ function makeSsMapPingSnapshotRequestId() {
   } catch (_err) {
     return `ssmps-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
+}
+
+function getSsMapPingViewMetrics(state) {
+  const wrap = state?.imageWrapEl;
+  const image = state?.imageEl;
+  if (!(wrap instanceof HTMLElement) || !(image instanceof HTMLImageElement)) return null;
+  const wrapRect = wrap.getBoundingClientRect();
+  const cw = Number(wrapRect.width ?? 0);
+  const ch = Number(wrapRect.height ?? 0);
+  if (!(cw > 0) || !(ch > 0)) return null;
+
+  const naturalW = Number(image.naturalWidth ?? 0);
+  const naturalH = Number(image.naturalHeight ?? 0);
+  if (!(naturalW > 0) || !(naturalH > 0)) {
+    return { wrapRect, cw, ch, baseW: cw, baseH: ch };
+  }
+  const fit = Math.min(cw / naturalW, ch / naturalH);
+  const baseW = naturalW * fit;
+  const baseH = naturalH * fit;
+  return { wrapRect, cw, ch, baseW, baseH };
+}
+
+function clampSsMapPingView(state) {
+  const view = state?.view;
+  if (!view) return;
+  const zoom = Number(view.zoom ?? 1);
+  view.zoom = Math.min(4, Math.max(1, Number.isFinite(zoom) ? zoom : 1));
+
+  const metrics = getSsMapPingViewMetrics(state);
+  if (!metrics) return;
+  const { cw, ch, baseW, baseH } = metrics;
+  const extentX = Math.max(0, ((baseW * view.zoom) - cw) / 2);
+  const extentY = Math.max(0, ((baseH * view.zoom) - ch) / 2);
+  view.panX = Math.min(extentX, Math.max(-extentX, Number(view.panX ?? 0) || 0));
+  view.panY = Math.min(extentY, Math.max(-extentY, Number(view.panY ?? 0) || 0));
+}
+
+function applySsMapPingViewTransform(state) {
+  const image = state?.imageEl;
+  const wrap = state?.imageWrapEl;
+  const view = state?.view;
+  if (!(image instanceof HTMLImageElement) || !view) return;
+  clampSsMapPingView(state);
+  image.style.transformOrigin = "50% 50%";
+  image.style.transform = `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})`;
+  const cursor = view.dragging ? "grabbing" : (view.zoom > 1.01 ? "grab" : "crosshair");
+  image.style.cursor = cursor;
+  if (wrap instanceof HTMLElement) wrap.style.cursor = cursor;
+}
+
+function resetSsMapPingViewTransform(state) {
+  const view = state?.view;
+  if (!view) return;
+  view.zoom = 1;
+  view.panX = 0;
+  view.panY = 0;
+  view.dragPointerId = null;
+  view.pointerStartX = 0;
+  view.pointerStartY = 0;
+  view.pointerMoved = false;
+  view.dragging = false;
+  view.startPanX = 0;
+  view.startPanY = 0;
+  view.pinchDistance = 0;
+  view.pinchZoom = 1;
+  view.pinchCenterX = 0;
+  view.pinchCenterY = 0;
+  view.pinchPanX = 0;
+  view.pinchPanY = 0;
+  if (view.pointers instanceof Map) view.pointers.clear();
+  applySsMapPingViewTransform(state);
+}
+
+function mapSsMapPingClientToNormalized(state, clientX, clientY) {
+  const view = state?.view;
+  if (!view) return null;
+  const metrics = getSsMapPingViewMetrics(state);
+  if (!metrics) return null;
+  const { wrapRect, cw, ch, baseW, baseH } = metrics;
+  const px = Number(clientX) - wrapRect.left;
+  const py = Number(clientY) - wrapRect.top;
+  if (!Number.isFinite(px) || !Number.isFinite(py)) return null;
+
+  const xFromCenter = (px - (cw / 2) - view.panX) / view.zoom;
+  const yFromCenter = (py - (ch / 2) - view.panY) / view.zoom;
+  const ix = xFromCenter + (baseW / 2);
+  const iy = yFromCenter + (baseH / 2);
+  if (!(ix >= 0 && ix <= baseW && iy >= 0 && iy <= baseH)) return null;
+
+  const nx = ix / baseW;
+  const ny = iy / baseH;
+  if (!(nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1)) return null;
+  return { nx, ny };
+}
+
+function zoomSsMapPingAtClient(state, clientX, clientY, factor) {
+  const view = state?.view;
+  if (!view) return false;
+  const metrics = getSsMapPingViewMetrics(state);
+  if (!metrics) return false;
+  const { wrapRect, cw, ch } = metrics;
+
+  const px = Number(clientX) - wrapRect.left;
+  const py = Number(clientY) - wrapRect.top;
+  if (!Number.isFinite(px) || !Number.isFinite(py)) return false;
+
+  const currentZoom = Number(view.zoom ?? 1);
+  const nextZoom = Math.min(4, Math.max(1, currentZoom * factor));
+  if (Math.abs(nextZoom - currentZoom) < 0.001) return false;
+
+  const worldX = (px - (cw / 2) - view.panX) / currentZoom;
+  const worldY = (py - (ch / 2) - view.panY) / currentZoom;
+  view.zoom = nextZoom;
+  view.panX = px - (cw / 2) - (worldX * nextZoom);
+  view.panY = py - (ch / 2) - (worldY * nextZoom);
+  applySsMapPingViewTransform(state);
+  return true;
 }
 
 function ensureSsMapPingSnapshotOverlay() {
@@ -6466,7 +7644,9 @@ function ensureSsMapPingSnapshotOverlay() {
     borderRadius: "8px",
     border: "1px solid rgba(214, 181, 109, 0.28)",
     background: "rgba(0, 0, 0, 0.55)",
-    overflow: "hidden"
+    overflow: "hidden",
+    touchAction: "none",
+    cursor: "crosshair"
   });
 
   const image = document.createElement("img");
@@ -6475,14 +7655,28 @@ function ensureSsMapPingSnapshotOverlay() {
     height: "100%",
     objectFit: "contain",
     display: "none",
-    touchAction: "manipulation",
+    touchAction: "none",
     cursor: "crosshair",
-    background: "rgb(0,0,0)"
+    background: "rgb(0,0,0)",
+    userSelect: "none",
+    webkitUserDrag: "none"
   });
+  image.draggable = false;
   imageWrap.appendChild(image);
 
   const actions = document.createElement("div");
-  actions.style.cssText = "display:grid; grid-template-columns:1fr; gap:8px;";
+  actions.style.cssText = "display:grid; grid-template-columns:1fr 1fr; gap:8px;";
+  const requestBtn = document.createElement("button");
+  requestBtn.type = "button";
+  requestBtn.innerHTML = '<i class="fas fa-camera"></i> Request Snapshot';
+  Object.assign(requestBtn.style, {
+    minHeight: "2.2rem",
+    borderRadius: "8px",
+    border: "1px solid rgba(109, 172, 214, 0.65)",
+    background: "rgba(18, 44, 62, 0.95)",
+    color: "#d6edff",
+    fontWeight: "700"
+  });
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.textContent = "Close";
@@ -6494,7 +7688,17 @@ function ensureSsMapPingSnapshotOverlay() {
     color: "#f2ead3",
     fontWeight: "700"
   });
-  actions.appendChild(closeBtn);
+  actions.append(requestBtn, closeBtn);
+
+  requestBtn.addEventListener("click", () => {
+    if (game.user?.isGM) return;
+    if (state.waiting) return;
+    requestSsMapPingSnapshot({
+      actorName: String(state.actorName ?? ""),
+      actorId: String(state.actorId ?? ""),
+      sceneId: String(state.sceneId ?? game.scenes?.viewed?.id ?? "")
+    });
+  });
 
   closeBtn.addEventListener("click", () => {
     overlay.style.display = "none";
@@ -6502,35 +7706,146 @@ function ensureSsMapPingSnapshotOverlay() {
     state.sceneId = "";
     state.waiting = false;
     state.snapshotReady = false;
+    resetSsMapPingViewTransform(state);
   });
 
-  image.addEventListener("click", (ev) => {
-    if (game.user?.isGM) return;
-    if (!state.snapshotReady || !state.requestId) return;
-    const rect = image.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-
-    const nx = (ev.clientX - rect.left) / rect.width;
-    const ny = (ev.clientY - rect.top) / rect.height;
-    if (!(nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1)) return;
+  const pingAtClientPoint = (clientX, clientY) => {
+    if (game.user?.isGM) return false;
+    if (!state.snapshotReady || !state.requestId) return false;
+    const mapped = mapSsMapPingClientToNormalized(state, clientX, clientY);
+    if (!mapped) return false;
 
     const sent = sendCommandToGmSocket("ssMapPingSnapshot", {
       mode: "tap",
       requestId: state.requestId,
       sceneId: state.sceneId || "",
-      nx,
-      ny,
+      nx: mapped.nx,
+      ny: mapped.ny,
       timestamp: Date.now(),
       userId: game.user?.id ?? null
     });
     if (!sent) {
-      ui.notifications?.warn?.("No active GM connected.");
+      showSsNoActiveGmDialog({ actionLabel: "Ping On Map" });
+      status.textContent = "GM Required: Ping unavailable until a GM is online.";
+      return false;
+    }
+    status.textContent = "Ping sent to GM.";
+    hint.textContent = "Tap/click to ping. Drag to pan. Pinch or mouse-wheel to zoom. Be mindful of placement when zoomed.";
+    return true;
+  };
+
+  imageWrap.addEventListener("wheel", (ev) => {
+    if (game.user?.isGM) return;
+    if (!state.snapshotReady) return;
+    ev.preventDefault();
+    const factor = ev.deltaY < 0 ? 1.12 : (1 / 1.12);
+    zoomSsMapPingAtClient(state, ev.clientX, ev.clientY, factor);
+  }, { passive: false });
+
+  const onPointerDown = (ev) => {
+    if (game.user?.isGM) return;
+    if (!state.snapshotReady) return;
+    if (ev.pointerType === "mouse" && ev.button !== 0) return;
+    const view = state.view;
+    if (!(view?.pointers instanceof Map)) return;
+
+    imageWrap.setPointerCapture?.(ev.pointerId);
+    view.pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY, pointerType: ev.pointerType });
+    view.pointerMoved = false;
+
+    if (view.pointers.size === 1) {
+      view.dragPointerId = ev.pointerId;
+      view.pointerStartX = ev.clientX;
+      view.pointerStartY = ev.clientY;
+      view.startPanX = view.panX;
+      view.startPanY = view.panY;
+      view.dragging = false;
+    } else if (view.pointers.size >= 2) {
+      const pts = Array.from(view.pointers.values());
+      const p1 = pts[0];
+      const p2 = pts[1];
+      view.pinchDistance = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1;
+      view.pinchZoom = view.zoom;
+      view.pinchCenterX = (p1.x + p2.x) / 2;
+      view.pinchCenterY = (p1.y + p2.y) / 2;
+      view.pinchPanX = view.panX;
+      view.pinchPanY = view.panY;
+      view.dragging = true;
+      view.pointerMoved = true;
+      applySsMapPingViewTransform(state);
+    }
+    ev.preventDefault();
+  };
+
+  const onPointerMove = (ev) => {
+    if (game.user?.isGM) return;
+    if (!state.snapshotReady) return;
+    const view = state.view;
+    if (!(view?.pointers instanceof Map) || !view.pointers.has(ev.pointerId)) return;
+
+    view.pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY, pointerType: ev.pointerType });
+
+    if (view.pointers.size >= 2) {
+      const pts = Array.from(view.pointers.values());
+      const p1 = pts[0];
+      const p2 = pts[1];
+      const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1;
+      const centerX = (p1.x + p2.x) / 2;
+      const centerY = (p1.y + p2.y) / 2;
+      view.zoom = Math.min(4, Math.max(1, view.pinchZoom * (dist / (view.pinchDistance || 1))));
+      view.panX = view.pinchPanX + (centerX - view.pinchCenterX);
+      view.panY = view.pinchPanY + (centerY - view.pinchCenterY);
+      view.dragging = true;
+      view.pointerMoved = true;
+      applySsMapPingViewTransform(state);
+      ev.preventDefault();
       return;
     }
 
-    status.textContent = "Ping sent to GM.";
-    hint.textContent = "Tap again to send another general ping, or Close when done.";
-  });
+    if (view.dragPointerId !== ev.pointerId) return;
+    const dx = ev.clientX - view.pointerStartX;
+    const dy = ev.clientY - view.pointerStartY;
+    const movedSq = (dx * dx) + (dy * dy);
+    if ((view.zoom > 1.01) || (movedSq > 64)) view.dragging = true;
+    if (view.dragging) {
+      view.panX = view.startPanX + dx;
+      view.panY = view.startPanY + dy;
+      if (movedSq > 16) view.pointerMoved = true;
+      applySsMapPingViewTransform(state);
+      ev.preventDefault();
+    }
+  };
+
+  const onPointerUpOrCancel = (ev) => {
+    const view = state.view;
+    if (!(view?.pointers instanceof Map)) return;
+    const tracked = view.pointers.has(ev.pointerId);
+    if (tracked) view.pointers.delete(ev.pointerId);
+    const shouldPing = tracked
+      && !game.user?.isGM
+      && state.snapshotReady
+      && !!state.requestId
+      && !view.pointerMoved
+      && view.pointers.size === 0;
+
+    if (view.pointers.size === 0) {
+      view.dragPointerId = null;
+      view.dragging = false;
+      view.pinchDistance = 0;
+      view.pinchZoom = view.zoom;
+      applySsMapPingViewTransform(state);
+    }
+
+    if (shouldPing) {
+      pingAtClientPoint(ev.clientX, ev.clientY);
+    }
+    imageWrap.releasePointerCapture?.(ev.pointerId);
+  };
+
+  imageWrap.addEventListener("pointerdown", onPointerDown);
+  imageWrap.addEventListener("pointermove", onPointerMove);
+  imageWrap.addEventListener("pointerup", onPointerUpOrCancel);
+  imageWrap.addEventListener("pointercancel", onPointerUpOrCancel);
 
   card.append(title, status, hint, imageWrap, actions);
   overlay.appendChild(card);
@@ -6541,6 +7856,8 @@ function ensureSsMapPingSnapshotOverlay() {
   state.hintEl = hint;
   state.imageWrapEl = imageWrap;
   state.imageEl = image;
+  state.requestBtn = requestBtn;
+  refreshSsMapPingSnapshotRequestButtonForPlayer();
   state.closeBtn = closeBtn;
   return overlay;
 }
@@ -6563,9 +7880,15 @@ function openSsMapPingSnapshotWaiting({ requestId, sceneId = "" } = {}) {
     state.statusEl.style.color = "";
   }
   if (state.hintEl) {
-    state.hintEl.textContent = "The GM is preparing a low-quality map snapshot for a general placement ping. No zoom; use it only for approximate ping placement.";
+    state.hintEl.textContent = "The GM is preparing a low-quality map snapshot for a general placement ping.";
     state.hintEl.style.color = "";
   }
+  if (state.requestBtn) {
+    state.requestBtn.disabled = true;
+    state.requestBtn.innerHTML = '<i class="fas fa-hourglass-half"></i> Request Pending...';
+  }
+  refreshSsMapPingSnapshotRequestButtonForPlayer();
+  resetSsMapPingViewTransform(state);
   overlay.style.display = "flex";
 }
 
@@ -6583,13 +7906,19 @@ function showSsMapPingSnapshotImage({ requestId, sceneId = "", image = "" } = {}
   }
   if (state.imageWrapEl) state.imageWrapEl.style.display = "flex";
   if (state.statusEl) {
-    state.statusEl.textContent = "Tap the image to ping a location for the GM.";
+    state.statusEl.textContent = "Tap/click to ping. Drag to pan. Pinch or mouse-wheel to zoom.";
     state.statusEl.style.color = "";
   }
   if (state.hintEl) {
-    state.hintEl.textContent = "Low-quality reference only. No zoom. Use taps for general placement guidance.";
+    state.hintEl.textContent = "Low-quality reference only. Be mindful of placement when zoomed or panned.";
     state.hintEl.style.color = "";
   }
+  if (state.requestBtn) {
+    state.requestBtn.disabled = false;
+    state.requestBtn.innerHTML = '<i class="fas fa-camera"></i> Request Snapshot';
+  }
+  refreshSsMapPingSnapshotRequestButtonForPlayer();
+  resetSsMapPingViewTransform(state);
   overlay.style.display = "flex";
 }
 
@@ -6606,8 +7935,14 @@ function showSsMapPingSnapshotCancelled(message = "GM cancelled the map ping req
   if (state.statusEl) state.statusEl.textContent = "Map ping request not completed.";
   if (state.hintEl) state.hintEl.textContent = String(message || "GM cancelled the map ping request.");
   if (state.closeBtn) state.closeBtn.textContent = "Close";
+  if (state.requestBtn) {
+    state.requestBtn.disabled = false;
+    state.requestBtn.innerHTML = '<i class="fas fa-camera"></i> Request Snapshot';
+  }
+  refreshSsMapPingSnapshotRequestButtonForPlayer();
   if (state.statusEl) state.statusEl.style.color = "";
   if (state.hintEl) state.hintEl.style.color = "";
+  resetSsMapPingViewTransform(state);
   overlay.style.display = "flex";
 }
 
@@ -6630,20 +7965,39 @@ function showSsMapPingSnapshotNoGm() {
     state.hintEl.textContent = "Ping On Map needs a GM online. Please wait for your GM to log in, then try again.";
     state.hintEl.style.color = "#ffd2c7";
   }
+  if (state.requestBtn) {
+    state.requestBtn.disabled = true;
+    state.requestBtn.innerHTML = '<i class="fas fa-camera"></i> Request Snapshot';
+  }
+  refreshSsMapPingSnapshotRequestButtonForPlayer();
   if (state.closeBtn) state.closeBtn.textContent = "Close";
+  resetSsMapPingViewTransform(state);
   overlay.style.display = "flex";
 }
 
-function requestSsMapPingSnapshot({ actorName = "", sceneId = "" } = {}) {
+function requestSsMapPingSnapshot({ actorName = "", actorId = "", sceneId = "" } = {}) {
   if (game.user?.isGM) return false;
+  const state = ssMapPingSnapshotPlayerState;
+  const nextActorName = String(actorName ?? "").trim();
+  const nextActorId = String(actorId ?? "").trim();
+  const nextSceneId = String(sceneId ?? "").trim();
+  if (nextActorName) state.actorName = nextActorName;
+  if (nextActorId) state.actorId = nextActorId;
+  if (nextSceneId) {
+    state.sceneId = nextSceneId;
+  } else if (!String(state.sceneId ?? "").trim()) {
+    state.sceneId = String(game.scenes?.viewed?.id ?? "");
+  }
+
   const requestId = makeSsMapPingSnapshotRequestId();
-  openSsMapPingSnapshotWaiting({ requestId, sceneId });
+  openSsMapPingSnapshotWaiting({ requestId, sceneId: state.sceneId });
 
   const sent = sendCommandToGmSocket("ssMapPingSnapshot", {
     mode: "request",
     requestId,
-    sceneId: String(sceneId ?? ""),
-    actorName: String(actorName ?? ""),
+    sceneId: String(state.sceneId ?? ""),
+    actorName: String(state.actorName ?? ""),
+    actorId: String(state.actorId ?? ""),
     timestamp: Date.now(),
     userId: game.user?.id ?? null
   });
@@ -6674,7 +8028,6 @@ async function captureSsMapPingSnapshotForGm({ scale = 0.34, quality = 0.45 } = 
 
   // Hide nonessential layers so players only get a general actor+map reference.
   const hiddenTargets = [
-    canvas.tiles,
     canvas.notes,
     canvas.drawings,
     canvas.templates,
@@ -6683,11 +8036,77 @@ async function captureSsMapPingSnapshotForGm({ scale = 0.34, quality = 0.45 } = 
     canvas.hud
   ].filter((x) => x && typeof x.visible === "boolean");
   const visibilitySnapshot = hiddenTargets.map((target) => [target, target.visible]);
+  const hiddenRenderTargets = [];
+  const seenHiddenRenderTargets = new Set();
+  const collectHiddenRenderTarget = (target) => {
+    if (!target || typeof target !== "object") return;
+    if (seenHiddenRenderTargets.has(target)) return;
+    const hasVisible = typeof target.visible === "boolean";
+    const hasRenderable = typeof target.renderable === "boolean";
+    const hasAlpha = typeof target.alpha === "number";
+    if (!hasVisible && !hasRenderable && !hasAlpha) return;
+
+    seenHiddenRenderTargets.add(target);
+    hiddenRenderTargets.push({
+      target,
+      hasVisible,
+      hasRenderable,
+      hasAlpha,
+      visible: hasVisible ? !!target.visible : false,
+      renderable: hasRenderable ? !!target.renderable : false,
+      alpha: hasAlpha ? Number(target.alpha) : 1
+    });
+  };
+
+  const collectHiddenRenderSubtree = (root) => {
+    const walk = (node) => {
+      if (!node || typeof node !== "object") return;
+      collectHiddenRenderTarget(node);
+      const children = Array.from(node?.children ?? []);
+      children.forEach((child) => walk(child));
+    };
+    walk(root);
+  };
+
+  const hiddenPlaceableTiles = Array.from(canvas.tiles?.placeables ?? [])
+    .filter((tile) => !!tile?.document?.hidden);
+  hiddenPlaceableTiles.forEach((tile) => {
+    collectHiddenRenderSubtree(tile);
+    collectHiddenRenderSubtree(tile?.mesh);
+    collectHiddenRenderSubtree(tile?.object);
+    collectHiddenRenderSubtree(tile?.object?.mesh);
+    collectHiddenRenderSubtree(tile?.bg);
+    collectHiddenRenderSubtree(tile?.frame);
+    collectHiddenRenderSubtree(tile?.texture);
+  });
+
+  const hiddenPlaceableTokens = Array.from(canvas.tokens?.placeables ?? [])
+    .filter((token) => !!token?.document?.hidden);
+  hiddenPlaceableTokens.forEach((token) => {
+    collectHiddenRenderSubtree(token);
+    collectHiddenRenderSubtree(token?.mesh);
+    collectHiddenRenderSubtree(token?.object);
+    collectHiddenRenderSubtree(token?.object?.mesh);
+    collectHiddenRenderSubtree(token?.bars);
+    collectHiddenRenderSubtree(token?.effects);
+    collectHiddenRenderSubtree(token?.tooltip);
+    collectHiddenRenderSubtree(token?.target);
+    collectHiddenRenderSubtree(token?.nameplate);
+  });
 
   let rt = null;
   let extracted = null;
   try {
     for (const [target] of visibilitySnapshot) target.visible = false;
+    for (const entry of hiddenRenderTargets) {
+      try {
+        if (entry.hasVisible) entry.target.visible = false;
+        if (entry.hasRenderable) entry.target.renderable = false;
+        if (entry.hasAlpha) entry.target.alpha = 0;
+      } catch (_err) {
+        // noop
+      }
+    }
 
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
@@ -6701,6 +8120,15 @@ async function captureSsMapPingSnapshotForGm({ scale = 0.34, quality = 0.45 } = 
   } finally {
     for (const [target, wasVisible] of visibilitySnapshot) {
       try { target.visible = wasVisible; } catch (_err) { /* noop */ }
+    }
+    for (const entry of hiddenRenderTargets) {
+      try {
+        if (entry.hasVisible) entry.target.visible = entry.visible;
+        if (entry.hasRenderable) entry.target.renderable = entry.renderable;
+        if (entry.hasAlpha) entry.target.alpha = entry.alpha;
+      } catch (_err) {
+        // noop
+      }
     }
     try { rt?.destroy?.(true); } catch (_err) { /* noop */ }
   }
@@ -6765,6 +8193,262 @@ async function sendSsMapPingSnapshotToPlayer(requestId) {
   return true;
 }
 
+function getSsSceneForMapPing(sceneId = "") {
+  const sid = String(sceneId ?? "").trim();
+  if (sid) {
+    return game.scenes?.get?.(sid)
+      ?? (String(game.scenes?.viewed?.id ?? "") === sid ? game.scenes.viewed : null)
+      ?? null;
+  }
+  return game.scenes?.viewed ?? null;
+}
+
+function getSsSceneTokensForMapPing(sceneId = "") {
+  const scene = getSsSceneForMapPing(sceneId);
+  return Array.from(scene?.tokens?.contents ?? scene?.tokens ?? []);
+}
+
+function getSsMapPingRequesterOwnedTokens(sceneId = "", userId = "") {
+  const uid = String(userId ?? "").trim();
+  if (!uid) return [];
+  const ownerLevel = Number(CONST?.DOCUMENT_OWNERSHIP_LEVELS?.OWNER ?? 3);
+  return getSsSceneTokensForMapPing(sceneId).filter((tokenDoc) => {
+    const actor = tokenDoc?.actor ?? game.actors?.get?.(tokenDoc?.actorId) ?? null;
+    const level = Number(actor?.ownership?.[uid] ?? 0);
+    return Number.isFinite(level) && level >= ownerLevel;
+  });
+}
+
+function findSsMapPingRequesterToken({ sceneId = "", userId = "", actorId = "", actorName = "" } = {}) {
+  const cleanActorId = String(actorId ?? "").trim();
+  const cleanActorName = String(actorName ?? "").trim().toLowerCase();
+  const allTokens = getSsSceneTokensForMapPing(sceneId);
+  const ownedTokens = getSsMapPingRequesterOwnedTokens(sceneId, userId);
+
+  if (cleanActorId) {
+    const byActorId = allTokens.find((tokenDoc) => String(tokenDoc?.actorId ?? "") === cleanActorId && !tokenDoc?.hidden)
+      ?? ownedTokens.find((tokenDoc) => String(tokenDoc?.actorId ?? "") === cleanActorId && !tokenDoc?.hidden)
+      ?? null;
+    if (byActorId) return byActorId;
+  }
+
+  if (cleanActorName) {
+    const byName = allTokens.find((tokenDoc) => {
+      if (tokenDoc?.hidden) return false;
+      const tokenName = String(tokenDoc?.name ?? "").trim().toLowerCase();
+      const actorNameText = String(tokenDoc?.actor?.name ?? game.actors?.get?.(tokenDoc?.actorId)?.name ?? "").trim().toLowerCase();
+      return tokenName === cleanActorName || actorNameText === cleanActorName;
+    })
+      ?? ownedTokens.find((tokenDoc) => {
+        const tokenName = String(tokenDoc?.name ?? "").trim().toLowerCase();
+        const actorNameText = String(tokenDoc?.actor?.name ?? game.actors?.get?.(tokenDoc?.actorId)?.name ?? "").trim().toLowerCase();
+        return tokenName === cleanActorName || actorNameText === cleanActorName;
+      })
+      ?? null;
+    if (byName) return byName;
+  }
+
+  const requester = game.users?.get?.(String(userId ?? "").trim()) ?? null;
+  const requesterCharacterId = String(requester?.character?.id ?? "").trim();
+  if (requesterCharacterId) {
+    const byCharacter = ownedTokens.find((tokenDoc) => String(tokenDoc?.actorId ?? "") === requesterCharacterId && !tokenDoc?.hidden) ?? null;
+    if (byCharacter) return byCharacter;
+  }
+
+  const characterOwned = ownedTokens.find((tokenDoc) => String(tokenDoc?.actor?.type ?? "") === "character" && !tokenDoc?.hidden) ?? null;
+  if (characterOwned) return characterOwned;
+
+  return ownedTokens.find((tokenDoc) => !tokenDoc?.hidden) ?? null;
+}
+
+function autoSelectSsMapPingRequesterToken(request = {}) {
+  if (!game.user?.isGM) return { selected: false, reason: "not-gm", tokenDoc: null };
+  if (!canvas?.ready) return { selected: false, reason: "canvas-not-ready", tokenDoc: null };
+
+  const tokenDoc = findSsMapPingRequesterToken({
+    sceneId: String(request?.sceneId ?? ""),
+    userId: String(request?.userId ?? ""),
+    actorId: String(request?.actorId ?? ""),
+    actorName: String(request?.actorName ?? "")
+  });
+  if (!tokenDoc?.id) return { selected: false, reason: "not-found", tokenDoc: null };
+
+  const viewedSceneId = String(game.scenes?.viewed?.id ?? canvas.scene?.id ?? "");
+  const tokenSceneId = String(tokenDoc?.parent?.id ?? request?.sceneId ?? "");
+  if (tokenSceneId && viewedSceneId && tokenSceneId !== viewedSceneId) {
+    return { selected: false, reason: "wrong-scene", tokenDoc };
+  }
+
+  const tokenObj = canvas?.tokens?.get?.(tokenDoc.id) ?? tokenDoc?.object ?? null;
+  if (!tokenObj) return { selected: false, reason: "not-on-canvas", tokenDoc };
+
+  try {
+    canvas.tokens?.releaseAll?.();
+    tokenObj.control?.({ releaseOthers: true });
+    syncSsBg3HotbarWithControlledToken();
+    return { selected: !!tokenObj.controlled, reason: tokenObj.controlled ? "selected" : "control-failed", tokenDoc };
+  } catch (_err) {
+    return { selected: false, reason: "control-failed", tokenDoc };
+  }
+}
+
+function captureSsCanvasControlState() {
+  const controls = ui?.controls ?? null;
+  const controlsList = Array.isArray(controls?.controls) ? controls.controls : [];
+  const activeControlData = controls?.control ?? null;
+  const activeControlDef = (() => {
+    const byName = String(activeControlData?.name ?? "").trim().toLowerCase();
+    if (byName) {
+      const match = controlsList.find((entry) => String(entry?.name ?? "").trim().toLowerCase() === byName);
+      if (match) return match;
+    }
+    return controlsList.find((entry) => !!entry?.active) ?? activeControlData;
+  })();
+  const activeControl = String(
+    activeControlData?.name
+    ?? activeControlDef?.name
+    ?? ""
+  ).trim().toLowerCase();
+  const activeTool = String(
+    activeControlDef?.activeTool
+    ?? activeControlDef?.tools?.find?.((tool) => !!tool?.active)?.name
+    ?? ""
+  ).trim().toLowerCase();
+  return { activeControl, activeTool };
+}
+
+function isSsBg3HotbarActive() {
+  return !!(game.modules?.get?.("bg3-inspired-hotbar")?.active && ui?.BG3HOTBAR);
+}
+
+function syncSsBg3HotbarWithControlledToken() {
+  if (!isSsBg3HotbarActive()) return false;
+  const hotbar = ui?.BG3HOTBAR ?? null;
+  if (typeof hotbar?.generate !== "function") return false;
+
+  const controlled = Array.from(canvas?.tokens?.controlled ?? []).filter(Boolean);
+  const token = controlled.length === 1 ? controlled[0] : null;
+  try {
+    void hotbar.generate(token);
+    return true;
+  } catch (_err) {
+    return false;
+  }
+}
+
+function queueSsBg3HotbarSync(delayMs = 0) {
+  if (!isSsBg3HotbarActive()) return false;
+  const delay = Math.max(0, Number(delayMs) || 0);
+  window.setTimeout(() => {
+    syncSsBg3HotbarWithControlledToken();
+  }, delay);
+  return true;
+}
+
+function activateSsCanvasControlMode(controlName = "", toolName = "") {
+  const control = String(controlName ?? "").trim().toLowerCase();
+  if (!control) return false;
+  const normalizedTool = String(toolName ?? "").trim().toLowerCase();
+
+  let activated = false;
+  const layerMap = {
+    token: canvas?.tokens,
+    templates: canvas?.templates,
+    measuredtemplates: canvas?.templates,
+    tiles: canvas?.tiles,
+    drawings: canvas?.drawings,
+    walls: canvas?.walls,
+    lighting: canvas?.lighting,
+    sounds: canvas?.sounds,
+    notes: canvas?.notes
+  };
+  const layer = layerMap[control] ?? null;
+  if (layer?.activate) {
+    try {
+      layer.activate();
+      activated = true;
+    } catch (_err) {
+      // noop
+    }
+  }
+
+  if (typeof ui?.controls?.activateControl === "function") {
+    try {
+      ui.controls.activateControl(control);
+      activated = true;
+    } catch (_err) {
+      // noop
+    }
+  }
+
+  if (normalizedTool && typeof ui?.controls?.activateTool === "function") {
+    try {
+      ui.controls.activateTool(normalizedTool);
+      activated = true;
+    } catch (_err) {
+      // noop
+    }
+  }
+
+  return activated;
+}
+
+function ensureSsTokenControlModeForMapPing() {
+  return activateSsCanvasControlMode("token", "select");
+}
+
+function restoreSsCanvasControlState(state) {
+  const control = String(state?.activeControl ?? "").trim().toLowerCase();
+  if (!control) return false;
+  const tool = String(state?.activeTool ?? "").trim().toLowerCase();
+  return activateSsCanvasControlMode(control, tool || "select");
+}
+
+function getSsMapPingApprovalMode() {
+  const raw = String(getSheetSidekickSetting("mapPingApprovalMode", "manual") ?? "manual").trim().toLowerCase();
+  return raw === "auto" ? "auto" : "manual";
+}
+
+async function promptSsMapPingSnapshotApproval({ title = "Ping On Map Request", content = "", label = "Player" } = {}) {
+  if (globalThis.Dialog) {
+    try {
+      const approved = await new Promise((resolve) => {
+        let settled = false;
+        const finish = (value) => {
+          if (settled) return;
+          settled = true;
+          resolve(!!value);
+        };
+
+        const dlg = new Dialog({
+          title,
+          content,
+          buttons: {
+            send: {
+              icon: '<i class="fas fa-camera"></i>',
+              label: "Send Snapshot",
+              callback: () => finish(true)
+            },
+            cancel: {
+              icon: '<i class="fas fa-times" style="color:#d94848;"></i>',
+              label: "Cancel",
+              callback: () => finish(false)
+            }
+          },
+          default: "send",
+          close: () => finish(false)
+        });
+        dlg.render(true);
+      });
+      return approved;
+    } catch (_err) {
+      // fall through to native confirm
+    }
+  }
+
+  return !!globalThis.confirm?.(`${label} requested a ping-on-map snapshot. Pan/zoom to the desired area and click OK to send.`);
+}
+
 async function executeSsMapPingSnapshotCommand(data = {}) {
   const mode = String(data.mode ?? "").toLowerCase();
   if (!mode) return;
@@ -6781,6 +8465,7 @@ async function executeSsMapPingSnapshotCommand(data = {}) {
     const requester = game.users?.get?.(requesterUserId) ?? null;
     const requesterName = requester?.name ?? "Player";
     const actorName = String(data.actorName ?? "").trim();
+    const actorId = String(data.actorId ?? "").trim();
     const sceneId = String(data.sceneId ?? "");
     const label = actorName ? `${requesterName} (${actorName})` : requesterName;
 
@@ -6789,41 +8474,61 @@ async function executeSsMapPingSnapshotCommand(data = {}) {
       userId: requesterUserId,
       requesterName,
       actorName,
+      actorId,
       sceneId,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       capture: null
     });
 
-    ui.notifications?.info?.(`${label} requested a Ping on Map snapshot.`);
+    const approvalMode = getSsMapPingApprovalMode();
+    ui.notifications?.info?.(`${label} requested a Ping on Map snapshot.${approvalMode === "auto" ? " Auto-send is enabled." : ""}`);
 
+    const priorControlState = captureSsCanvasControlState();
+    ensureSsTokenControlModeForMapPing();
     const viewedSceneId = String(game.scenes?.viewed?.id ?? canvas.scene?.id ?? "");
     const wrongSceneOpen = !!(sceneId && viewedSceneId && sceneId !== viewedSceneId);
+    const tokenSelection = autoSelectSsMapPingRequesterToken({
+      sceneId,
+      userId: requesterUserId,
+      actorId,
+      actorName
+    });
+    const restoreControlMode = () => {
+      const keepTokenModeForBg3 = isSsBg3HotbarActive() && (canvas?.tokens?.controlled?.length === 1);
+      if (keepTokenModeForBg3) {
+        activateSsCanvasControlMode("token", "select");
+        syncSsBg3HotbarWithControlledToken();
+        return;
+      }
+      restoreSsCanvasControlState(priorControlState);
+      syncSsBg3HotbarWithControlledToken();
+    };
+    const selectedTokenName = String(tokenSelection?.tokenDoc?.name ?? actorName ?? "requesting token").trim() || "requesting token";
+    const selectionHintHtml = tokenSelection?.selected
+      ? `<p><strong>Token selected:</strong> ${escapeHtml(selectedTokenName)} was auto-selected for FOV/FOW capture.</p>`
+      : `<p><strong>Important:</strong> Select that player's token first so the snapshot uses the correct FOV/FOW view before sending.</p>`;
     const content = `
       <div class="ss-map-ping-gm-request">
         <p><strong>${escapeHtml(label)}</strong> requested a low-quality map snapshot for a general ping.</p>
-        <p><strong>Important:</strong> Select that player's token first so the snapshot uses the correct FOV/FOW view before sending.</p>
-        <p>Pan/zoom to the area you want them to reference, then click <strong>Yes</strong> to send the snapshot.</p>
-        <p>The snapshot hides tiles, journal notes, drawings/templates, and canvas controls.</p>
+        ${selectionHintHtml}
+        <p>Pan/zoom to the area you want them to reference, then click <strong>Send Snapshot</strong>.</p>
+        <p>The snapshot hides hidden tiles, journal notes, drawings/templates, and canvas controls.</p>
         <p><em>Player taps are approximate pings only (no zoom).</em></p>
         ${wrongSceneOpen ? `<p style="color:#ffcf7d"><strong>Warning:</strong> Open the requested scene before sending.</p>` : ""}
       </div>
     `;
 
-    let approved = false;
-    if (globalThis.Dialog?.confirm) {
-      approved = !!(await Dialog.confirm({
+    const approved = approvalMode === "auto"
+      ? true
+      : await promptSsMapPingSnapshotApproval({
         title: "Ping On Map Request",
         content,
-        yes: () => true,
-        no: () => false,
-        defaultYes: true
-      }).catch?.(() => false));
-    } else {
-      approved = !!globalThis.confirm?.(`${label} requested a ping-on-map snapshot. Pan/zoom to the desired area and click OK to send.`);
-    }
+        label
+      });
 
     if (!approved) {
+      restoreControlMode();
       emitSsSocketMessage({
         type: "ssMapPingSnapshot",
         mode: "cancel",
@@ -6837,7 +8542,20 @@ async function executeSsMapPingSnapshotCommand(data = {}) {
     }
 
     try {
-      await sendSsMapPingSnapshotToPlayer(requestId);
+      const sent = await sendSsMapPingSnapshotToPlayer(requestId);
+      if (!sent) {
+        emitSsSocketMessage({
+          type: "ssMapPingSnapshot",
+          mode: "cancel",
+          toUserId: requesterUserId,
+          requestId,
+          message: wrongSceneOpen
+            ? "GM must open your requested scene before sending the map snapshot."
+            : "GM could not send the map snapshot.",
+          timestamp: Date.now(),
+          userId: game.user?.id ?? null
+        });
+      }
     } catch (err) {
       console.error("Map ping snapshot send failed:", err);
       ui.notifications?.error?.("Failed to send map snapshot.");
@@ -6850,6 +8568,8 @@ async function executeSsMapPingSnapshotCommand(data = {}) {
         timestamp: Date.now(),
         userId: game.user?.id ?? null
       });
+    } finally {
+      restoreControlMode();
     }
     return;
   }
@@ -6953,6 +8673,12 @@ Hooks.once("ready", () => {
       return;
     }
 
+    if (data.type === "ssDpadViewportLock" && !game.user?.isGM) {
+      setPlayerDpadViewportLockState(data);
+      syncOpenSheetDpadLocks();
+      return;
+    }
+
     if (data.type === "ssDpad" && game.user?.isGM) {
       const exec = globalThis.__SS_EXECUTE_DPAD_COMMAND__;
       if (typeof exec === "function") {
@@ -7018,6 +8744,25 @@ Hooks.once("ready", () => {
       return;
     }
 
+    if (data.type === "ssRest" && game.user?.isGM) {
+      const exec = globalThis.__SS_EXECUTE_REST_COMMAND__;
+      if (typeof exec === "function") {
+        await exec({
+          actorId: data.actorId ?? "",
+          restType: String(data.restType ?? ""),
+          timestamp: Number.parseInt(data.timestamp, 10),
+          userId: data.userId ?? null
+        });
+      } else if (typeof globalThis.__SS_REST_CHAT_HOOK__ === "function") {
+        await globalThis.__SS_REST_CHAT_HOOK__({
+          content: `!ss-rest ${data.actorId ?? ""} ${String(data.restType ?? "")} ${Number.parseInt(data.timestamp, 10)}`,
+          author: { id: data.userId ?? null },
+          user: { id: data.userId ?? null }
+        });
+      }
+      return;
+    }
+
     if (data.type === "ssPrep" && game.user?.isGM) {
       const exec = globalThis.__SS_EXECUTE_PREP_COMMAND__;
       if (typeof exec === "function") {
@@ -7047,6 +8792,11 @@ Hooks.once("ready", () => {
       return;
     }
 
+    if (data.type === "ssJournalImageShow" && !game.user?.isGM) {
+      showSsSharedJournalImageForPlayer(data);
+      return;
+    }
+
     if (data.type === "ssTarget" && game.user?.isGM) {
       await executeSsTargetCommand({
         mode: String(data.mode ?? "").toLowerCase(),
@@ -7072,6 +8822,36 @@ Hooks.once("ready", () => {
 
   game.socket?.on?.(SS_SOCKET_CHANNEL_PRIMARY, handleSsSocketMessage);
 });
+
+function decorateAlwaysPreparedSpellRowsForGm(app, element) {
+  try {
+    if (!game.user?.isGM) return;
+    if (!isSheetSidekickModuleActive()) return;
+
+    const actor = app?.actor;
+    if (!actor) return;
+
+    const root = (element instanceof HTMLElement) ? element : (element?.[0] instanceof HTMLElement) ? element[0] : null;
+    if (!root) return;
+    const scope = (root.tagName === "FORM") ? root : (root.querySelector("form") ?? root);
+    if (!(scope instanceof HTMLElement)) return;
+
+    scope.querySelectorAll("li.item[data-item-id]").forEach((row) => {
+      const itemId = String(row?.dataset?.itemId ?? "").trim();
+      if (!itemId) return;
+      const item = actor.items?.get?.(itemId) ?? null;
+      const prepMode = getSpellPreparationMethod(item);
+      const isAlwaysPreparedSpell = isAlwaysPreparedSpellItem(item) || (item?.type === "spell" && prepMode === "always");
+      row.classList.toggle("ss-spell-always-prepared", isAlwaysPreparedSpell);
+
+      const prepBtn = row.querySelector(".item-action[data-action='prepare'], .item-action[data-action='ssPrepareToggle']");
+      if (!(prepBtn instanceof HTMLElement)) return;
+      prepBtn.classList.toggle("ss-prepare-always", isAlwaysPreparedSpell);
+    });
+  } catch (err) {
+    console.error("Sheet Sidekick GM always-prepared decorator failed:", err);
+  }
+}
 
 // 2b. TAP-TO-CAST FOR SHEET-SIDEKICK PLAYERS (spells + features)
 function bindTapToCast(app, element) {
@@ -7147,6 +8927,7 @@ function bindTapToCast(app, element) {
     };
 
     const decorateInfoButtons = () => {
+      ensureSheetSidekickRestButtons(scope, actor);
       ensureActionFilterBars(scope, actor);
       scope.querySelectorAll("li.item[data-item-id]").forEach(row => {
         const itemId = row.dataset?.itemId;
@@ -7417,6 +9198,49 @@ function bindTapToCast(app, element) {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
 
+      const restTrigger = target.closest(
+        ".ss-rest-trigger, .sheet-header .sheet-header-buttons > button[data-action='shortRest'], .sheet-header .sheet-header-buttons > button[data-action='longRest']"
+      );
+      if (restTrigger instanceof HTMLElement) {
+        const restType = String(
+          restTrigger.dataset?.ssRest
+          ?? restTrigger.dataset?.action
+          ?? ""
+        ).trim().toLowerCase().includes("long") ? "long" : "short";
+
+        saveSheetScroll(scope, actor);
+        queueRestore();
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+
+        if (!getActiveGmIds().length) {
+          showSsNoActiveGmDialog({ actionLabel: `Taking a ${restType} rest` });
+          return;
+        }
+
+        if (confirmOpen) return;
+        confirmOpen = true;
+        const decision = await confirmSsRest(actor, restType);
+        confirmOpen = false;
+        if (!decision?.confirmed) return;
+
+        const commandTs = Date.now();
+        sendRestInfoToGmWhisper(actor, restType);
+        const sent = sendCommandToGmSocket("ssRest", {
+          actorId: actor.id,
+          restType,
+          timestamp: commandTs,
+          userId: game.user?.id ?? null
+        });
+        if (!sent) {
+          sendCommandToGmWhisper(`!ss-rest ${actor.id} ${restType} ${commandTs}`, {
+            noGmActionLabel: `Taking a ${restType} rest`
+          });
+        }
+        return;
+      }
+
       if (target.closest(".item-action[data-action='equip']")) {
         const equipBtn = target.closest(".item-action[data-action='equip']");
         if (equipBtn instanceof HTMLElement) {
@@ -7569,7 +9393,9 @@ function bindTapToCast(app, element) {
           userId: game.user?.id ?? null
         });
         if (!sent) {
-          sendCommandToGmWhisper(`!ss-roll ${actor.id} ${rollRequest.kind} ${rollRequest.key} ${commandTs}`);
+          sendCommandToGmWhisper(`!ss-roll ${actor.id} ${rollRequest.kind} ${rollRequest.key} ${commandTs}`, {
+            noGmActionLabel: "Rolling checks"
+          });
         }
         return;
       }
@@ -7630,6 +9456,7 @@ function bindTapToCast(app, element) {
       if (decision?.requestPlacementPing) {
         requestSsMapPingSnapshot({
           actorName: actor?.name ?? "",
+          actorId: actor?.id ?? "",
           sceneId: game.scenes?.viewed?.id ?? ""
         });
       }
@@ -7656,8 +9483,21 @@ function bindTapToCast(app, element) {
   }
 }
 
+Hooks.on("renderActorSheetV2", decorateAlwaysPreparedSpellRowsForGm);
+Hooks.on("renderActorSheet", decorateAlwaysPreparedSpellRowsForGm);
 Hooks.on("renderActorSheetV2", bindTapToCast);
 Hooks.on("renderActorSheet", bindTapToCast);
+Hooks.on("renderJournalSheet", bindVanillaJournalImageShare);
+Hooks.on("renderJournalPageSheet", bindVanillaJournalImageShare);
+Hooks.on("renderJournalTextPageSheet", bindVanillaJournalImageShare);
+Hooks.on("renderJournalImagePageSheet", bindVanillaJournalImageShare);
+Hooks.once("ready", bindGlobalJournalImageShareListener);
+Hooks.on("updateUser", (_user, changed) => {
+  if (game.user?.isGM) return;
+  const activeChanged = !!foundry?.utils?.hasProperty?.(changed, "active");
+  if (!activeChanged) return;
+  refreshSsMapPingSnapshotRequestButtonForPlayer();
+});
 Hooks.on("renderActorSheetV2", applySheetSidekickUiCleanup);
 Hooks.on("renderActorSheet", applySheetSidekickUiCleanup);
 Hooks.on("renderActorSheetV2", (app) => {
@@ -7678,6 +9518,13 @@ Hooks.on("canvasReady", () => {
   if (game.user?.isGM) return;
   queueSheetSidekickFormRefresh(80);
 });
+Hooks.on("controlToken", () => {
+  queueSsBg3HotbarSync(0);
+  queueSsBg3HotbarSync(45);
+});
+Hooks.on("canvasReady", () => {
+  queueSsBg3HotbarSync(80);
+});
 window.addEventListener("resize", () => {
   if (game.user?.isGM) return;
   queueSheetSidekickFormRefresh(80);
@@ -7687,6 +9534,46 @@ Hooks.on("renderActorSheetV2", () => {
 });
 Hooks.on("renderActorSheet", () => {
   startSheetSidekickUiEnsure(6000);
+});
+Hooks.on("renderApplicationV2", (app, html) => {
+  if (!game.user?.isGM) return;
+  const root = html instanceof HTMLElement ? html : (html?.[0] instanceof HTMLElement ? html[0] : null);
+  const rootClassList = root?.classList ?? null;
+  const optionsClasses = Array.isArray(app?.options?.classes) ? app.options.classes : [];
+  const isShort = !!(rootClassList?.contains?.("short-rest") || optionsClasses.includes("short-rest"));
+  const isLong = !!(rootClassList?.contains?.("long-rest") || optionsClasses.includes("long-rest"));
+  if (!root || (!isShort && !isLong)) return;
+
+  const actorId = String(app?.document?.id ?? app?.actor?.id ?? app?.options?.document?.id ?? "").trim();
+  const pending = consumeSsPendingRestDialogLabel(actorId, isLong ? "long" : "short")
+    ?? (!actorId ? consumeSsPendingRestDialogLabel("", isLong ? "long" : "short") : null)
+    ?? (() => {
+      const now = Date.now();
+      const idx = ssPendingRestDialogLabels.findIndex((entry) => (
+        entry.restType === (isLong ? "long" : "short")
+        && Number(entry?.expiresAt ?? 0) > now
+      ));
+      if (idx < 0) return null;
+      return ssPendingRestDialogLabels.splice(idx, 1)[0] ?? null;
+    })();
+  if (!pending) return;
+
+  const titleText = `${pending.actorName} - ${isLong ? "Long Rest" : "Short Rest"}`;
+  const titleEl = root.querySelector(".window-title");
+  if (titleEl instanceof HTMLElement) titleEl.textContent = titleText;
+
+  let subtitleEl = root.querySelector(".window-subtitle");
+  if (!(subtitleEl instanceof HTMLElement)) {
+    subtitleEl = root.querySelector(".ss-rest-request-subtitle");
+  }
+  if (!(subtitleEl instanceof HTMLElement)) {
+    subtitleEl = document.createElement("h2");
+    subtitleEl.className = "window-subtitle ss-rest-request-subtitle";
+    subtitleEl.style.cssText = "font-size:.82rem; font-weight:600; color:rgba(240,224,185,.92); margin:0;";
+    const titleNode = root.querySelector(".window-title");
+    titleNode?.insertAdjacentElement("afterend", subtitleEl);
+  }
+  subtitleEl.textContent = `Requested for ${pending.actorName}`;
 });
 Hooks.on("ready", () => {
   if (game.user?.isGM) return;
@@ -7775,7 +9662,7 @@ Hooks.once("ready", () => {
     if (!canvas?.ready) return ui.notifications.warn("GM canvas not ready (view a scene).");
 
     // LAG PREVENTION: Drop commands older than 2s
-    if (Number.isFinite(timestamp) && (Date.now() - timestamp > 2000)) {
+    if (Number.isFinite(timestamp) && (Date.now() - timestamp > 10000)) {
       console.warn("Dropped old DPAD command due to lag:", Date.now() - timestamp, "ms");
       return;
     }
@@ -7786,6 +9673,10 @@ Hooks.once("ready", () => {
 
     const tokenDoc = pickTokenForUser(userId);
     if (!tokenDoc) return ui.notifications.warn("No owned token for that user in viewed scene.");
+    if (!isSsTokenVisibleInGmViewport(tokenDoc)) {
+      queueSsDpadViewportLockSyncFromGm(String(tokenDoc?.parent?.id ?? game.scenes?.viewed?.id ?? canvas?.scene?.id ?? ""));
+      return;
+    }
 
     const size = canvas.grid.size;
     const dx = (dir === "left" ? -1 : dir === "right" ? 1 : 0) * size;
@@ -8031,7 +9922,58 @@ Hooks.once("ready", () => {
   Hooks.on("createChatMessage", globalThis.__SS_ROLL_CHAT_HOOK__);
 });
 
-// 6. GM EXECUTION LOGIC FOR SHEET-SIDEKICK SPELL PREP TOGGLE
+// 6. GM EXECUTION LOGIC FOR SHEET-SIDEKICK REST REQUESTS
+Hooks.once("ready", () => {
+  if (!game.user.isGM) return;
+
+  const COMMAND_PREFIX = "!ss-rest";
+
+  const executeSsRestCommand = async ({ actorId, restType, timestamp, userId }) => {
+    if (!actorId || !restType) return;
+    if (Number.isFinite(timestamp) && (Date.now() - timestamp > 20000)) return;
+    if (!userId) return;
+
+    const actor = game.actors.get(actorId);
+    if (!actor) return ui.notifications.warn("Requested rest actor not found.");
+
+    const ownership = actor.ownership?.[userId] ?? 0;
+    if (ownership < CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER) {
+      return ui.notifications.warn("Player does not own that actor.");
+    }
+
+    const normalized = String(restType ?? "").trim().toLowerCase() === "long" ? "long" : "short";
+    try {
+      queueSsPendingRestDialogLabel(actor, normalized);
+      if (normalized === "long") {
+        await actor.longRest({ dialog: true, chat: true });
+      } else {
+        await actor.shortRest({ dialog: true, chat: true });
+      }
+    } catch (err) {
+      console.error("Sheet Sidekick rest execution error:", err);
+      ui.notifications.error(`Failed to start ${getSsRestButtonLabel(normalized)}.`);
+    }
+  };
+  globalThis.__SS_EXECUTE_REST_COMMAND__ = executeSsRestCommand;
+
+  if (globalThis.__SS_REST_CHAT_HOOK__) Hooks.off("createChatMessage", globalThis.__SS_REST_CHAT_HOOK__);
+
+  globalThis.__SS_REST_CHAT_HOOK__ = async (msg) => {
+    const text = normalizeChatCommandText(msg.content);
+    if (!text.toLowerCase().startsWith(COMMAND_PREFIX)) return;
+
+    const parts = text.split(/\s+/);
+    const actorId = parts[1] ?? "";
+    const restType = String(parts[2] ?? "").trim();
+    const timestamp = Number.parseInt(parts[3], 10);
+    const userId = msg.author?.id ?? msg.user?.id;
+    await executeSsRestCommand({ actorId, restType, timestamp, userId });
+  };
+
+  Hooks.on("createChatMessage", globalThis.__SS_REST_CHAT_HOOK__);
+});
+
+// 7. GM EXECUTION LOGIC FOR SHEET-SIDEKICK SPELL PREP TOGGLE
 Hooks.once("ready", () => {
   if (!game.user.isGM) return;
 
@@ -8084,7 +10026,7 @@ Hooks.once("ready", () => {
   Hooks.on("createChatMessage", globalThis.__SS_PREP_CHAT_HOOK__);
 });
 
-// 7. GM EXECUTION LOGIC FOR SHEET-SIDEKICK TARGETING
+// 8. GM EXECUTION LOGIC FOR SHEET-SIDEKICK TARGETING
 Hooks.once("ready", () => {
   if (!game.user.isGM) return;
 

@@ -78,6 +78,33 @@ const registerSettings = () => {
     default: {},
     type: Object
   });
+  game.settings.register(moduleId, "mapPingApprovalMode", {
+    name: "Ping On Map Approval Mode",
+    hint: "Manual asks the GM before sending a snapshot. Auto sends immediately without prompting.",
+    scope: "world",
+    config: true,
+    restricted: true,
+    type: String,
+    choices: {
+      manual: "Manual (Ask GM)",
+      auto: "Auto (No Prompt)"
+    },
+    default: "manual"
+  });
+  game.settings.register(moduleId, "journalImageDisplaySeconds", {
+    name: "Journal Image Display Duration",
+    hint: "How many seconds a shared journal image stays visible for Sheet Sidekick players before auto-hiding.",
+    scope: "world",
+    config: true,
+    restricted: true,
+    type: Number,
+    range: {
+      min: 1,
+      max: 120,
+      step: 1
+    },
+    default: 20
+  });
 };
 class SidekickAccessPanelApp extends FormApplication {
   constructor(options = {}) {

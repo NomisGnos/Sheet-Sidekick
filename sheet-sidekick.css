@@ -185,19 +185,195 @@ body.hide-ui #slideshow-display img {
   }
 }
 
-/* JOURNAL CSS */
-.journal-entry-content,
-.journal-entry-content p,
-.journal-entry-pages,
-.journal-entry-page .editor-content p
- { font-size: 1.18em; }
-.journal-entry-page .editor-content h1 { font-size: 2.15em; }
-.journal-entry-page .editor-content h2 { font-size: 2em; }
-.journal-entry-page .editor-content h3 { font-size: 1.8em; }
-.journal-entry-page .editor-content h4 { font-size: 1.6em; }
-.journal-entry-page .editor-content h5 { font-size: 1.45em; }
-.journal-entry-page .editor-content a
- { font-size: 95%; }
+/* JOURNAL CSS - GM only */
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-content,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-pages,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content p,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content li,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content td,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content th,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content p,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content li,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content td,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content th,
+body.ss-gm-client .prosemirror .editor-content,
+body.ss-gm-client .prosemirror .editor-content p,
+body.ss-gm-client .prosemirror .editor-content li,
+body.ss-gm-client .prosemirror .editor-content td,
+body.ss-gm-client .prosemirror .editor-content th {
+	font-size: 1.06rem;
+	line-height: 1.62;
+	letter-spacing: 0.01em;
+}
+
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content,
+body.ss-gm-client .prosemirror .editor-content {
+	color: rgba(235, 228, 210, 0.96);
+	text-wrap: pretty;
+}
+
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content p,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content ul,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content ol,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content blockquote,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content p,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content ul,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content ol,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content blockquote,
+body.ss-gm-client .prosemirror .editor-content p,
+body.ss-gm-client .prosemirror .editor-content ul,
+body.ss-gm-client .prosemirror .editor-content ol,
+body.ss-gm-client .prosemirror .editor-content blockquote {
+	margin: 0 0 0.8rem;
+}
+
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content ul,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content ol,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content ul,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content ol,
+body.ss-gm-client .prosemirror .editor-content ul,
+body.ss-gm-client .prosemirror .editor-content ol {
+	padding-left: 1.3rem;
+}
+
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content h1,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content h2,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content h3,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content h4,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content h1,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content h2,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content h3,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content h4,
+body.ss-gm-client .prosemirror .editor-content h1,
+body.ss-gm-client .prosemirror .editor-content h2,
+body.ss-gm-client .prosemirror .editor-content h3,
+body.ss-gm-client .prosemirror .editor-content h4 {
+	margin: 1.2rem 0 0.65rem;
+	line-height: 1.18;
+	font-weight: 800;
+	color: #fff1cc;
+	letter-spacing: 0.02em;
+}
+
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content h1,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content h1,
+body.ss-gm-client .prosemirror .editor-content h1 {
+	font-size: 2.15em;
+	padding-bottom: 0.18em;
+	border-bottom: 2px solid rgba(214, 181, 109, 0.58);
+	text-shadow: 0 1px 0 rgba(0, 0, 0, 0.55);
+}
+
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content h2,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content h2,
+body.ss-gm-client .prosemirror .editor-content h2 {
+	font-size: 1.92em;
+	padding-bottom: 0.14em;
+	border-bottom: 1px solid rgba(214, 181, 109, 0.36);
+}
+
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content h3,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content h3,
+body.ss-gm-client .prosemirror .editor-content h3 {
+	font-size: 1.55em;
+	padding: 0.24rem 0.7rem 0.26rem;
+	border-left: 4px solid rgba(121, 201, 255, 0.88);
+	border-radius: 0.55rem;
+	background: linear-gradient(90deg, rgba(24, 33, 44, 0.9), rgba(24, 33, 44, 0.34));
+}
+
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content h4,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content h4,
+body.ss-gm-client .prosemirror .editor-content h4 {
+	font-size: 1.32em;
+	padding: 0.18rem 0.62rem 0.22rem;
+	border-left: 3px solid rgba(214, 181, 109, 0.82);
+	border-radius: 0.45rem;
+	background: linear-gradient(90deg, rgba(41, 31, 16, 0.82), rgba(41, 31, 16, 0.18));
+}
+
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content h5,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content h5,
+body.ss-gm-client .prosemirror .editor-content h5 {
+	font-size: 1.14em;
+	margin: 0.95rem 0 0.45rem;
+	color: #f3deb0;
+}
+
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content blockquote,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content blockquote,
+body.ss-gm-client .prosemirror .editor-content blockquote {
+	padding: 0.85rem 1rem;
+	border: 1px solid rgba(214, 181, 109, 0.3);
+	border-left: 5px solid rgba(121, 201, 255, 0.92);
+	border-radius: 0.7rem;
+	background:
+		linear-gradient(180deg, rgba(20, 28, 38, 0.9), rgba(12, 18, 26, 0.95)),
+		radial-gradient(circle at top left, rgba(121, 201, 255, 0.08), transparent 42%);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+	color: rgba(235, 241, 248, 0.96);
+}
+
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content blockquote > :last-child,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content blockquote > :last-child,
+body.ss-gm-client .prosemirror .editor-content blockquote > :last-child {
+	margin-bottom: 0;
+}
+
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content hr,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content hr,
+body.ss-gm-client .prosemirror .editor-content hr {
+	border: 0;
+	height: 1px;
+	margin: 1rem 0;
+	background: linear-gradient(90deg, transparent, rgba(214, 181, 109, 0.66), transparent);
+}
+
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content strong,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content strong,
+body.ss-gm-client .prosemirror .editor-content strong {
+	color: #fff2d0;
+}
+
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content a,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .editor-content a,
+body.ss-gm-client .prosemirror .editor-content a {
+	font-size: 95%;
+	color: #8ed0ff;
+	text-decoration-thickness: 2px;
+	text-underline-offset: 0.16em;
+}
+
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-page-header h1,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-page-header h2,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-page-header h3,
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-page-header h4 {
+	margin: 0 0 0.9rem;
+	padding: 0.35rem 0.85rem 0.5rem;
+	border-radius: 0.7rem;
+	background: linear-gradient(180deg, rgba(36, 26, 15, 0.92), rgba(18, 14, 10, 0.96));
+	border: 1px solid rgba(214, 181, 109, 0.42);
+	box-shadow: inset 0 1px 0 rgba(255, 240, 210, 0.06);
+	color: #fff0c7;
+}
+
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content pre {
+	padding: 0.8rem 0.95rem;
+	border-radius: 0.7rem;
+	border: 1px solid rgba(95, 132, 168, 0.3);
+	background: linear-gradient(180deg, rgba(12, 18, 27, 0.97), rgba(8, 12, 18, 0.98));
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+	overflow-x: auto;
+}
+
+body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-content code {
+	color: #d8ecff;
+	font-size: 0.96em;
+}
+
 .journal-entry-pages p:empty::before {
   content: "\00a0"; /* non-breaking space */
 }
@@ -579,6 +755,25 @@ body.hide-ui #slideshow-display img {
 
 :is(form.sheet-sidekick-sheet, form.ss-sheet) .window-content {
 	padding: var(--ss-space-2) !important;
+	overflow-y: auto !important;
+	scrollbar-gutter: stable;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(214, 181, 109, 0.62) rgba(255, 255, 255, 0.04);
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .window-content::-webkit-scrollbar {
+	width: 10px;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .window-content::-webkit-scrollbar-track {
+	background: rgba(255, 255, 255, 0.04);
+	border-radius: 999px;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .window-content::-webkit-scrollbar-thumb {
+	background: linear-gradient(180deg, rgba(214, 181, 109, 0.85), rgba(153, 123, 64, 0.85));
+	border-radius: 999px;
+	border: 2px solid rgba(10, 13, 21, 0.95);
 }
 
 :is(form.sheet-sidekick-sheet, form.ss-sheet) section.window-content header.sheet-header {
@@ -1089,6 +1284,17 @@ body.hide-ui #slideshow-display img {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-you {
+	display: inline-block;
+	margin-left: 0.28rem;
+	font-size: 0.74em;
+	font-weight: 800;
+	letter-spacing: 0.02em;
+	color: #7ecfff;
+	vertical-align: baseline;
+	white-space: nowrap;
 }
 
 :is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-target-states {
@@ -1747,6 +1953,12 @@ body.hide-ui #slideshow-display img {
 	gap: 0.5rem !important;
 }
 
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons .ss-rest-actions {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.42rem;
+}
+
 :is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons > button {
 	min-width: 2.25rem;
 	min-height: 2.05rem;
@@ -1768,15 +1980,49 @@ body.hide-ui #slideshow-display img {
 	pointer-events: none;
 }
 
-/* Bigger/easier short-rest + long-rest taps on mobile sheet-sidekick players */
-:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons > button[data-action="shortRest"],
-:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons > button[data-action="longRest"],
-:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons > button[aria-label*="Short Rest"],
-:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons > button[aria-label*="Long Rest"] {
-	min-width: 2.9rem !important;
-	min-height: 2.6rem !important;
-	padding: 0.38rem 0.44rem !important;
-	font-size: 1.06rem !important;
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons > button.ss-native-rest-btn {
+	display: none !important;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons .ss-rest-trigger {
+	min-width: 5.5rem;
+	min-height: 2.55rem;
+	padding: 0.38rem 0.62rem;
+	border-radius: 999px;
+	border: 1px solid rgba(220, 188, 116, 0.62);
+	background:
+		linear-gradient(180deg, rgba(77, 53, 24, 0.96), rgba(34, 24, 11, 0.98)),
+		radial-gradient(circle at top, rgba(255, 210, 117, 0.2), transparent 62%);
+	box-shadow:
+		inset 0 1px 0 rgba(255, 235, 190, 0.18),
+		0 6px 16px rgba(0, 0, 0, 0.22);
+	color: #f6e6bb;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.34rem;
+	font-size: 0.82rem;
+	font-weight: 800;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons .ss-rest-trigger i {
+	font-size: 0.95rem;
+	color: #ffd57f;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons .ss-rest-trigger-label {
+	line-height: 1;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons .ss-rest-trigger:hover,
+:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons .ss-rest-trigger:focus-visible {
+	border-color: rgba(245, 214, 149, 0.88);
+	background:
+		linear-gradient(180deg, rgba(96, 67, 30, 0.98), rgba(43, 30, 14, 0.99)),
+		radial-gradient(circle at top, rgba(255, 223, 146, 0.28), transparent 64%);
+	color: #fff2cd;
 }
 
 /* Make expand/collapse triangle easier to hit */
@@ -1992,6 +2238,22 @@ body.hide-ui #slideshow-display img {
 	align-items: center;
 }
 
+.app.dialog .window-content .ss-rest-confirm-icon {
+	width: 54px;
+	height: 54px;
+	border-radius: 999px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid rgba(220, 188, 116, 0.6);
+	background:
+		radial-gradient(circle at 30% 25%, rgba(255, 218, 137, 0.28), transparent 40%),
+		linear-gradient(180deg, rgba(86, 59, 27, 0.98), rgba(31, 21, 10, 0.98));
+	box-shadow: inset 0 1px 0 rgba(255, 232, 180, 0.2);
+	color: #ffd57f;
+	font-size: 1.35rem;
+}
+
 .app.dialog .window-content .ss-use-confirm-title-row {
 	display: flex;
 	align-items: center;
@@ -2071,8 +2333,25 @@ body.hide-ui #slideshow-display img {
 	margin: 0.35rem 0 0.1rem 1rem;
 }
 
+.app.dialog .window-content .ss-rest-confirm-copy-wrap {
+	display: grid;
+	gap: 0.35rem;
+}
+
+.app.dialog .window-content .ss-rest-confirm-copy {
+	margin: 0;
+	line-height: 1.38;
+}
+
 .app.dialog .window-content .ss-hint-section-title {
-	margin: 0.2rem 0 0.35rem;
+	margin: 0.2rem 0 0.2rem;
+}
+
+.app.dialog .window-content .ss-hint-section-note {
+	margin: 0 0 0.35rem;
+	font-size: 0.84rem;
+	line-height: 1.25;
+	opacity: 0.88;
 }
 
 .app.dialog .window-content .ss-hint-grid {
@@ -2145,6 +2424,10 @@ body.hide-ui #slideshow-display img {
 
 .app.dialog .window-content .ss-hint-formula .ss-hint-icon-wrap {
 	background: rgba(64, 44, 18, 0.9);
+}
+
+.app.dialog .window-content .ss-hint-check .ss-hint-icon-wrap {
+	background: rgba(41, 51, 70, 0.9);
 }
 
 .app.dialog .window-content .ss-hint-ammo .ss-hint-icon-wrap {
@@ -2262,6 +2545,17 @@ body.hide-ui #slideshow-display img {
 	border: 1px solid rgba(194, 126, 29, 0.45);
 	background: rgba(124, 82, 20, 0.12);
 	color: #6e480e;
+	font-size: 0.9rem;
+	font-weight: 650;
+}
+
+.app.dialog .window-content .ss-use-confirm-concentration-note {
+	margin: 0.12rem 0 0.2rem;
+	padding: 0.38rem 0.5rem;
+	border-radius: 6px;
+	border: 1px solid rgba(173, 133, 47, 0.45);
+	background: rgba(128, 90, 22, 0.1);
+	color: #7f560f;
 	font-size: 0.9rem;
 	font-weight: 650;
 }
@@ -2495,8 +2789,11 @@ li.item.ss-action-filter-muted > .item-row {
 .app.window-app.dialog.ss-use-confirm-dialog,
 dialog.application.ss-use-confirm-dialog {
 	width: min(92vw, 980px) !important;
+	top: 50% !important;
+	left: 50% !important;
+	transform: translate(-50%, -50%) !important;
 	height: auto !important;
-	max-height: 82vh !important;
+	max-height: 80vh !important;
 	z-index: 2000 !important;
 	box-shadow:
 		0 0 0 200vmax rgba(8, 10, 14, 0.74),
@@ -2504,7 +2801,8 @@ dialog.application.ss-use-confirm-dialog {
 }
 
 .app.ss-locked-tooltip-dialog .window-content {
-	max-height: calc(82vh - 5rem);
+	box-sizing: border-box;
+	max-height: calc(80vh - 5rem);
 	overflow: hidden;
 	display: flex;
 	flex-direction: column;
@@ -2513,9 +2811,27 @@ dialog.application.ss-use-confirm-dialog {
 
 .app.ss-locked-tooltip-dialog .window-content .dialog-content {
 	position: relative;
-	overflow: auto;
+	overflow-y: auto;
 	flex: 1 1 auto;
 	padding-bottom: 0.08rem;
+	scrollbar-gutter: stable;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(214, 181, 109, 0.62) rgba(255, 255, 255, 0.04);
+}
+
+.app.ss-locked-tooltip-dialog .window-content .dialog-content::-webkit-scrollbar {
+	width: 10px;
+}
+
+.app.ss-locked-tooltip-dialog .window-content .dialog-content::-webkit-scrollbar-track {
+	background: rgba(255, 255, 255, 0.04);
+	border-radius: 999px;
+}
+
+.app.ss-locked-tooltip-dialog .window-content .dialog-content::-webkit-scrollbar-thumb {
+	background: linear-gradient(180deg, rgba(214, 181, 109, 0.85), rgba(153, 123, 64, 0.85));
+	border-radius: 999px;
+	border: 2px solid rgba(10, 13, 21, 0.95);
 }
 
 .app.ss-locked-tooltip-dialog .window-content .dialog-buttons {
@@ -2523,24 +2839,6 @@ dialog.application.ss-use-confirm-dialog {
 	position: relative;
 	z-index: 2;
 	background: inherit;
-}
-
-.app.ss-locked-tooltip-dialog.ss-has-scroll-more .window-content .dialog-content::after {
-	content: "";
-	position: sticky;
-	left: 0;
-	right: 0;
-	bottom: 0;
-	display: block;
-	height: 50px;
-	margin-top: -50px;
-	pointer-events: none;
-	background: linear-gradient(
-		180deg,
-		rgba(235, 233, 226, 0) 0%,
-		rgba(235, 233, 226, 0.8) 70%,
-		rgba(235, 233, 226, 0.98) 100%
-	);
 }
 
 .app.ss-locked-tooltip-dialog .ss-locked-tooltip-body {
@@ -2786,15 +3084,15 @@ dialog.application.ss-use-confirm-dialog {
 	to { transform: rotate(360deg); }
 }
 
-:is(form.sheet-sidekick-sheet, form.ss-sheet) li.item.ss-spell-always-prepared .item-action[data-action="prepare"],
-:is(form.sheet-sidekick-sheet, form.ss-sheet) li.item.ss-spell-always-prepared .item-action[data-action="ssPrepareToggle"],
-:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-action.ss-prepare-always {
+:is(form.sheet-sidekick-sheet, form.ss-sheet, form.dnd5e2.sheet.actor) li.item.ss-spell-always-prepared .item-action[data-action="prepare"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet, form.dnd5e2.sheet.actor) li.item.ss-spell-always-prepared .item-action[data-action="ssPrepareToggle"],
+:is(form.sheet-sidekick-sheet, form.ss-sheet, form.dnd5e2.sheet.actor) .item-action.ss-prepare-always {
 	border-color: rgba(121, 201, 255, 0.78) !important;
 }
 
-:is(form.sheet-sidekick-sheet, form.ss-sheet) li.item.ss-spell-always-prepared .item-action[data-action="prepare"] i,
-:is(form.sheet-sidekick-sheet, form.ss-sheet) li.item.ss-spell-always-prepared .item-action[data-action="ssPrepareToggle"] i,
-:is(form.sheet-sidekick-sheet, form.ss-sheet) .item-action.ss-prepare-always i {
+:is(form.sheet-sidekick-sheet, form.ss-sheet, form.dnd5e2.sheet.actor) li.item.ss-spell-always-prepared .item-action[data-action="prepare"] i,
+:is(form.sheet-sidekick-sheet, form.ss-sheet, form.dnd5e2.sheet.actor) li.item.ss-spell-always-prepared .item-action[data-action="ssPrepareToggle"] i,
+:is(form.sheet-sidekick-sheet, form.ss-sheet, form.dnd5e2.sheet.actor) .item-action.ss-prepare-always i {
 	color: #79c9ff !important;
 	text-shadow: 0 0 7px rgba(121, 201, 255, 0.45);
 }
@@ -2869,7 +3167,7 @@ dialog.application.ss-use-confirm-dialog {
 	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores {
 		position: sticky !important;
 		top: auto !important;
-		bottom: var(--ss-ability-scores-bottom, calc(var(--ss-bottom-nav-pad)));
+		bottom: var(--ss-ability-scores-bottom, var(--ss-bottom-nav-pad));
 		left: 0 !important;
 		right: 0 !important;
 		z-index: 30;
@@ -3646,12 +3944,10 @@ dialog.application.ss-use-confirm-dialog section.window-content > .dialog-button
 /* C) Use Item modal: prevent right-cutoff and bottom clipping. */
 .app.window-app.dialog.ss-use-confirm-dialog,
 dialog.application.ss-use-confirm-dialog {
-	left: 50% !important;
 	right: auto !important;
-	transform: translateX(-50%) !important;
 	width: min(94vw, 620px) !important;
 	max-width: 620px !important;
-	max-height: calc(100dvh - 0.7rem) !important;
+	max-height: 80vh !important;
 	height: auto !important;
 }
 
@@ -3662,7 +3958,7 @@ dialog.application.ss-use-confirm-dialog section.window-content {
 	flex-direction: column;
 	gap: 0.2rem;
 	overflow: hidden !important;
-	max-height: calc(100dvh - 4.8rem) !important;
+	max-height: calc(80vh - 3.4rem) !important;
 	padding-bottom: 0.3rem !important;
 }
 
@@ -3672,6 +3968,28 @@ dialog.application.ss-use-confirm-dialog section.window-content > .dialog-conten
 	min-height: 0;
 	overflow-y: auto !important;
 	padding-bottom: 0.18rem;
+	scrollbar-gutter: stable;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(214, 181, 109, 0.62) rgba(255, 255, 255, 0.04);
+	position: relative;
+}
+
+.app.window-app.dialog.ss-use-confirm-dialog section.window-content > .dialog-content::-webkit-scrollbar,
+dialog.application.ss-use-confirm-dialog section.window-content > .dialog-content::-webkit-scrollbar {
+	width: 10px;
+}
+
+.app.window-app.dialog.ss-use-confirm-dialog section.window-content > .dialog-content::-webkit-scrollbar-track,
+dialog.application.ss-use-confirm-dialog section.window-content > .dialog-content::-webkit-scrollbar-track {
+	background: rgba(255, 255, 255, 0.04);
+	border-radius: 999px;
+}
+
+.app.window-app.dialog.ss-use-confirm-dialog section.window-content > .dialog-content::-webkit-scrollbar-thumb,
+dialog.application.ss-use-confirm-dialog section.window-content > .dialog-content::-webkit-scrollbar-thumb {
+	background: linear-gradient(180deg, rgba(214, 181, 109, 0.85), rgba(153, 123, 64, 0.85));
+	border-radius: 999px;
+	border: 2px solid rgba(10, 13, 21, 0.95);
 }
 
 .app.window-app.dialog.ss-use-confirm-dialog section.window-content > .dialog-buttons,
@@ -3681,6 +3999,26 @@ dialog.application.ss-use-confirm-dialog section.window-content > .dialog-button
 	background: inherit;
 	padding: 0.22rem 0 0.3rem;
 	margin-top: 0.24rem !important;
+}
+
+.app.ss-locked-tooltip-dialog.ss-has-scroll-more .window-content .dialog-content::after,
+.app.window-app.dialog.ss-use-confirm-dialog.ss-has-scroll-more section.window-content > .dialog-content::after,
+dialog.application.ss-use-confirm-dialog.ss-has-scroll-more section.window-content > .dialog-content::after {
+	content: "";
+	position: sticky;
+	left: 0;
+	right: 0;
+	bottom: -3px;
+	display: block;
+	height: 54px;
+	margin-top: -54px;
+	pointer-events: none;
+	background: linear-gradient(
+		180deg,
+		rgba(13, 19, 29, 0) 0%,
+		rgba(13, 19, 29, 0.72) 62%,
+		rgba(13, 19, 29, 0.96) 100%
+	);
 }
 
 /* D) Low-detail inventory groups on phones: keep controls aligned on one row. */
@@ -4267,7 +4605,7 @@ dialog.application.ss-use-confirm-dialog section.window-content > .dialog-button
 /* Mid-width mobile/tablet tweak: reduce excess gap between ability score strip and fixed bottom tabs. */
 @media (min-width: 480px) and (max-width: 760px) {
 	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores {
-		bottom: var(--ss-ability-scores-bottom, calc(var(--ss-bottom-nav-pad) - 0.35rem)) !important;
+		bottom: var(--ss-ability-scores-bottom, var(--ss-bottom-nav-pad)) !important;
 	}
 
 	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right,
@@ -4291,8 +4629,18 @@ dialog.application.ss-use-confirm-dialog section.window-content > .dialog-button
 		padding-bottom: calc(var(--ss-bottom-nav-pad) - 0.9rem) !important;
 	}
 
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons .ss-rest-actions {
+		gap: 0.28rem;
+	}
+
+	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .sheet-header .sheet-header-buttons .ss-rest-trigger {
+		min-width: 4.7rem;
+		padding: 0.36rem 0.48rem;
+		font-size: 0.72rem;
+	}
+
 	:is(form.sheet-sidekick-sheet, form.ss-sheet).dnd5e2.sheet.actor.character .ability-scores {
-		bottom: var(--ss-ability-scores-bottom, calc(var(--ss-bottom-nav-pad) - 0.85rem)) !important;
+		bottom: var(--ss-ability-scores-bottom, var(--ss-bottom-nav-pad)) !important;
 	}
 
 	:is(form.sheet-sidekick-sheet, form.ss-sheet) nav.tabs-right,
