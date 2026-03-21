@@ -1,0 +1,17 @@
+{
+  "Sheet-Sidekick.app.title": "Sheet Sidekick",
+  "Sheet-Sidekick.access-panel.name": "Acceso de jugadores",
+  "Sheet-Sidekick.access-panel.label": "Abrir",
+  "Sheet-Sidekick.access-panel.hint": "Elige que jugadores deben usar Sheet Sidekick.",
+  "Sheet-Sidekick.panel.players": "Jugadores",
+  "Sheet-Sidekick.panel.enable-sidekick": "Activar Sidekick",
+  "Sheet-Sidekick.panel.save": "Guardar",
+  "Sheet-Sidekick.settings.map-ping-approval.name": "Modo de aprobacion de Ping en mapa",
+  "Sheet-Sidekick.settings.map-ping-approval.hint": "Manual pide confirmacion al DJ antes de enviar una captura. Auto la envia de inmediato sin preguntar.",
+  "Sheet-Sidekick.settings.map-ping-approval.choice.manual": "Manual (preguntar al DJ)",
+  "Sheet-Sidekick.settings.map-ping-approval.choice.auto": "Auto (sin confirmacion)",
+  "Sheet-Sidekick.settings.journal-image-duration.name": "Duracion de imagen del diario",
+  "Sheet-Sidekick.settings.journal-image-duration.hint": "Cuantos segundos permanece visible una imagen compartida del diario para los jugadores de Sheet Sidekick antes de ocultarse automaticamente.",
+  "Sheet-Sidekick.logout.title": "Cerrar sesion?",
+  "Sheet-Sidekick.logout.content": "Quieres cerrar sesion en Foundry?"
+}

@@ -79,21 +79,21 @@ const registerSettings = () => {
     type: Object
   });
   game.settings.register(moduleId, "mapPingApprovalMode", {
-    name: "Ping On Map Approval Mode",
-    hint: "Manual asks the GM before sending a snapshot. Auto sends immediately without prompting.",
+    name: ssL10n("Sheet-Sidekick.settings.map-ping-approval.name"),
+    hint: ssL10n("Sheet-Sidekick.settings.map-ping-approval.hint"),
     scope: "world",
     config: true,
     restricted: true,
     type: String,
     choices: {
-      manual: "Manual (Ask GM)",
-      auto: "Auto (No Prompt)"
+      manual: ssL10n("Sheet-Sidekick.settings.map-ping-approval.choice.manual"),
+      auto: ssL10n("Sheet-Sidekick.settings.map-ping-approval.choice.auto")
     },
     default: "manual"
   });
   game.settings.register(moduleId, "journalImageDisplaySeconds", {
-    name: "Journal Image Display Duration",
-    hint: "How many seconds a shared journal image stays visible for Sheet Sidekick players before auto-hiding.",
+    name: ssL10n("Sheet-Sidekick.settings.journal-image-duration.name"),
+    hint: ssL10n("Sheet-Sidekick.settings.journal-image-duration.hint"),
     scope: "world",
     config: true,
     restricted: true,
@@ -113,7 +113,7 @@ class SidekickAccessPanelApp extends FormApplication {
   static get defaultOptions() {
     return foundry.utils.mergeObject(super.defaultOptions, {
       id: "sheet-sidekick",
-      title: "Sheet Sidekick",
+      title: ssL10n("Sheet-Sidekick.app.title"),
       template: "./modules/sheet-sidekick/templates/player-access-panel.html",
       width: 500,
       height: "auto",
@@ -268,17 +268,17 @@ async function confirmAndRunLogout() {
   try {
     if (typeof Dialog?.confirm === "function") {
       confirmed = await Dialog.confirm({
-        title: "Log Out?",
-        content: "<p>Do you want to log out of Foundry?</p>",
+        title: ssL10n("Sheet-Sidekick.logout.title"),
+        content: `<p>${ssL10n("Sheet-Sidekick.logout.content")}</p>`,
         yes: () => true,
         no: () => false,
         defaultYes: false
       });
     } else {
-      confirmed = window.confirm("Do you want to log out of Foundry?");
+      confirmed = window.confirm(ssL10n("Sheet-Sidekick.logout.content"));
     }
   } catch (_err) {
-    confirmed = window.confirm("Do you want to log out of Foundry?");
+    confirmed = window.confirm(ssL10n("Sheet-Sidekick.logout.content"));
   }
   if (!confirmed) return;
   ui.menu?.items?.logout?.onClick?.();

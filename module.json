@@ -1,8 +1,13 @@
 {
   "id": "sheet-sidekick",
   "title": "Sheet Sidekick",
-  "description": "Merged successor to Sheet Sidekick + Custom JS (migration scaffold).",
-  "version": "0.1.0-dev",
+  "description": "Mobile-first character sheet companion for Foundry VTT with GM-assisted movement, targeting, map pings, rests, and journal sharing.",
+  "version": "0.1.0",
+  "url": "https://github.com/NomisGnos/Sheet-Sidekick",
+  "manifest": "https://raw.githubusercontent.com/NomisGnos/Sheet-Sidekick/v0.1.0/module.json",
+  "download": "https://github.com/NomisGnos/Sheet-Sidekick/releases/download/v0.1.0/sheet-sidekick.zip",
+  "readme": "https://github.com/NomisGnos/Sheet-Sidekick/blob/v0.1.0/README.md",
+  "bugs": "https://github.com/NomisGnos/Sheet-Sidekick/issues",
   "authors": [
     {
       "name": "Simon"
@@ -22,6 +27,16 @@
       "lang": "de",
       "name": "Deutsch",
       "path": "lang/de.json"
+    },
+    {
+      "lang": "es",
+      "name": "Espanol",
+      "path": "lang/es.json"
+    },
+    {
+      "lang": "it",
+      "name": "Italiano",
+      "path": "lang/it.json"
     }
   ],
   "esmodules": [

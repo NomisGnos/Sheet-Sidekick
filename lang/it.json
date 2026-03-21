@@ -1,0 +1,17 @@
+{
+  "Sheet-Sidekick.app.title": "Sheet Sidekick",
+  "Sheet-Sidekick.access-panel.name": "Accesso giocatori",
+  "Sheet-Sidekick.access-panel.label": "Apri",
+  "Sheet-Sidekick.access-panel.hint": "Scegli quali giocatori devono usare Sheet Sidekick.",
+  "Sheet-Sidekick.panel.players": "Giocatori",
+  "Sheet-Sidekick.panel.enable-sidekick": "Abilita Sidekick",
+  "Sheet-Sidekick.panel.save": "Salva",
+  "Sheet-Sidekick.settings.map-ping-approval.name": "Modalita approvazione Ping sulla mappa",
+  "Sheet-Sidekick.settings.map-ping-approval.hint": "Manuale chiede al GM prima di inviare un'istantanea. Auto la invia subito senza richiesta.",
+  "Sheet-Sidekick.settings.map-ping-approval.choice.manual": "Manuale (chiedi al GM)",
+  "Sheet-Sidekick.settings.map-ping-approval.choice.auto": "Auto (senza richiesta)",
+  "Sheet-Sidekick.settings.journal-image-duration.name": "Durata visualizzazione immagine diario",
+  "Sheet-Sidekick.settings.journal-image-duration.hint": "Per quanti secondi un'immagine condivisa del diario resta visibile ai giocatori di Sheet Sidekick prima di nascondersi automaticamente.",
+  "Sheet-Sidekick.logout.title": "Disconnettersi?",
+  "Sheet-Sidekick.logout.content": "Vuoi disconnetterti da Foundry?"
+}

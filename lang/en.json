@@ -1,7 +1,17 @@
-﻿{
+{
+  "Sheet-Sidekick.app.title": "Sheet Sidekick",
   "Sheet-Sidekick.access-panel.name": "Player Access",
   "Sheet-Sidekick.access-panel.label": "Open",
   "Sheet-Sidekick.access-panel.hint": "Choose which players should use Sheet Sidekick.",
   "Sheet-Sidekick.panel.players": "Players",
-  "Sheet-Sidekick.panel.save": "Save"
+  "Sheet-Sidekick.panel.enable-sidekick": "Enable Sidekick",
+  "Sheet-Sidekick.panel.save": "Save",
+  "Sheet-Sidekick.settings.map-ping-approval.name": "Ping On Map Approval Mode",
+  "Sheet-Sidekick.settings.map-ping-approval.hint": "Manual asks the GM before sending a snapshot. Auto sends immediately without prompting.",
+  "Sheet-Sidekick.settings.map-ping-approval.choice.manual": "Manual (Ask GM)",
+  "Sheet-Sidekick.settings.map-ping-approval.choice.auto": "Auto (No Prompt)",
+  "Sheet-Sidekick.settings.journal-image-duration.name": "Journal Image Display Duration",
+  "Sheet-Sidekick.settings.journal-image-duration.hint": "How many seconds a shared journal image stays visible for Sheet Sidekick players before auto-hiding.",
+  "Sheet-Sidekick.logout.title": "Log Out?",
+  "Sheet-Sidekick.logout.content": "Do you want to log out of Foundry?"
 }

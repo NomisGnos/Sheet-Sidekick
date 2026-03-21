@@ -1,7 +1,17 @@
-﻿{
+{
+  "Sheet-Sidekick.app.title": "Sheet Sidekick",
   "Sheet-Sidekick.access-panel.name": "Spielerzugriff",
   "Sheet-Sidekick.access-panel.label": "Oeffnen",
   "Sheet-Sidekick.access-panel.hint": "Waehle aus, welche Spieler Sheet Sidekick verwenden.",
   "Sheet-Sidekick.panel.players": "Spieler",
-  "Sheet-Sidekick.panel.save": "Speichern"
+  "Sheet-Sidekick.panel.enable-sidekick": "Sidekick aktivieren",
+  "Sheet-Sidekick.panel.save": "Speichern",
+  "Sheet-Sidekick.settings.map-ping-approval.name": "Ping-auf-Karte-Freigabe",
+  "Sheet-Sidekick.settings.map-ping-approval.hint": "Manuell fragt den SL vor dem Senden eines Schnappschusses. Auto sendet sofort ohne Rueckfrage.",
+  "Sheet-Sidekick.settings.map-ping-approval.choice.manual": "Manuell (SL fragen)",
+  "Sheet-Sidekick.settings.map-ping-approval.choice.auto": "Auto (ohne Rueckfrage)",
+  "Sheet-Sidekick.settings.journal-image-duration.name": "Anzeigedauer fuer Journalbilder",
+  "Sheet-Sidekick.settings.journal-image-duration.hint": "Wie viele Sekunden ein geteiltes Journalbild fuer Sheet Sidekick-Spieler sichtbar bleibt, bevor es automatisch ausgeblendet wird.",
+  "Sheet-Sidekick.logout.title": "Abmelden?",
+  "Sheet-Sidekick.logout.content": "Moechtest du dich von Foundry abmelden?"
 }
