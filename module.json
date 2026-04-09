@@ -2,11 +2,11 @@
   "id": "sheet-sidekick",
   "title": "Sheet Sidekick",
   "description": "Mobile-first character sheet companion for Foundry VTT with GM-assisted movement, targeting, map pings, rests, and journal sharing.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "url": "https://github.com/NomisGnos/Sheet-Sidekick",
-  "manifest": "https://raw.githubusercontent.com/NomisGnos/Sheet-Sidekick/v0.1.0/module.json",
-  "download": "https://github.com/NomisGnos/Sheet-Sidekick/releases/download/v0.1.0/sheet-sidekick.zip",
-  "readme": "https://github.com/NomisGnos/Sheet-Sidekick/blob/v0.1.0/README.md",
+  "manifest": "https://raw.githubusercontent.com/NomisGnos/Sheet-Sidekick/v0.1.1/module.json",
+  "download": "https://github.com/NomisGnos/Sheet-Sidekick/releases/download/v0.1.1/sheet-sidekick.zip",
+  "readme": "https://github.com/NomisGnos/Sheet-Sidekick/blob/v0.1.1/README.md",
   "bugs": "https://github.com/NomisGnos/Sheet-Sidekick/issues",
   "authors": [
     {

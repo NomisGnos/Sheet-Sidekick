@@ -13,6 +13,21 @@
   max-height: unset;
 }
 
+:is(form.sheet-sidekick-sheet, form.ss-sheet) {
+  width: 100vw !important;
+  min-width: 100vw !important;
+  max-width: none !important;
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  box-sizing: border-box;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .window-content {
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box;
+}
+
 .ss-container {
   position: absolute;
   display: flex;
@@ -910,9 +925,12 @@
   flex-direction: row;
   gap: 0.1rem;
   z-index: 1;
-  right: 20rem;
-  left: auto;
+  right: 0;
+  left: 0;
   top: 104px;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
 }
 
 .ss-sheet.dnd5e2.sheet.actor.character nav.tabs > .item {
@@ -1012,9 +1030,12 @@
     flex-wrap: wrap;
     gap: 0.1rem;
     z-index: 1;
-    right: auto;
-    left: 15vw;
+    right: 0;
+    left: 0;
     top: 104px;
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
   }
   .ss-sheet.dnd5e2.sheet.actor.character .sheet-body .tab-body .tab.details {
     --skills-col-width: unset;

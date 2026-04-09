@@ -1021,6 +1021,35 @@ body.ss-gm-client .journal-sheet.dnd5e2 .journal-entry-page .journal-page-conten
 	filter: saturate(0.7);
 }
 
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-dpad-fs-overlay .ss-dpad-move-note {
+	position: absolute;
+	top: calc(max(0.7rem, env(safe-area-inset-top, 0px)) + 3.35rem);
+	left: 50%;
+	transform: translateX(-50%);
+	display: none;
+	align-items: center;
+	justify-content: center;
+	min-width: min(13rem, calc(100vw - 2rem));
+	max-width: min(24rem, calc(100vw - 2rem));
+	padding: 0.42rem 0.85rem;
+	border-radius: 999px;
+	border: 1px solid rgba(214, 181, 109, 0.42);
+	background: rgba(10, 14, 20, 0.84);
+	color: rgba(246, 233, 191, 0.98);
+	font-size: 0.82rem;
+	font-weight: 700;
+	line-height: 1.2;
+	letter-spacing: 0.02em;
+	text-align: center;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+	pointer-events: none;
+	z-index: 2;
+}
+
+:is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-dpad-fs-overlay .ss-dpad-move-note:not([hidden]) {
+	display: flex;
+}
+
 :is(form.sheet-sidekick-sheet, form.ss-sheet) .ss-dpad-fs-overlay .ss-dpad-lock-note {
 	grid-column: 2;
 	grid-row: 2;

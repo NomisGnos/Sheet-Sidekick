@@ -2535,6 +2535,16 @@ const ssDpadViewportLockState = globalThis.__SS_DPAD_VIEWPORT_LOCK_STATE__ ?? (g
   gmUserId: "",
   at: 0
 });
+const ssPlayerMovementState = globalThis.__SS_PLAYER_MOVEMENT_STATE__ ?? (globalThis.__SS_PLAYER_MOVEMENT_STATE__ = {
+  tokenPositions: {},
+  byActorId: {}
+});
+const ssGmBurstRulerState = globalThis.__SS_GM_BURST_RULER_STATE__ ?? (globalThis.__SS_GM_BURST_RULER_STATE__ = {
+  byTokenId: {},
+  container: null
+});
+const SS_PLAYER_MOVEMENT_BURST_MS = 2500;
+const SS_PLAYER_MOVEMENT_DISPLAY_MS = 4500;
 
 function setDpadEnabledOverride(value) {
   if (typeof value !== "boolean") return;
@@ -2594,6 +2604,446 @@ function getPlayerDpadViewportLockForActor(actorId = "") {
     locked: !!entry.locked,
     reason: reason || "Your token is outside the GM's current view."
   };
+}
+
+function getSsTokenPositionCacheKey(tokenDoc) {
+  const sceneId = String(tokenDoc?.parent?.id ?? tokenDoc?.parent?.parent?.id ?? game.scenes?.viewed?.id ?? "").trim();
+  const tokenId = String(tokenDoc?.id ?? "").trim();
+  if (!sceneId || !tokenId) return "";
+  return `${sceneId}.${tokenId}`;
+}
+
+function rememberSsTokenPosition(tokenDoc) {
+  const key = getSsTokenPositionCacheKey(tokenDoc);
+  if (!key) return;
+  const x = Number(tokenDoc?.x ?? 0);
+  const y = Number(tokenDoc?.y ?? 0);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+  ssPlayerMovementState.tokenPositions[key] = { x, y };
+}
+
+function forgetSsTokenPosition(tokenDoc) {
+  const key = getSsTokenPositionCacheKey(tokenDoc);
+  if (!key) return;
+  delete ssPlayerMovementState.tokenPositions[key];
+}
+
+function seedSsViewedSceneTokenPositions() {
+  const sceneDoc = game.scenes?.viewed ?? null;
+  const tokens = Array.from(sceneDoc?.tokens?.contents ?? sceneDoc?.tokens ?? []);
+  tokens.forEach((tokenDoc) => rememberSsTokenPosition(tokenDoc));
+}
+
+function getSsCurrentActiveActorId() {
+  const currentActor = getSheetSidekickModule()?.api?.getCurrentActor?.() ?? null;
+  return String(currentActor?.id ?? game.user?.character?.id ?? "").trim();
+}
+
+function isSsSceneInActiveCombat(sceneId = "") {
+  const sid = String(sceneId ?? "").trim();
+  if (!sid) return false;
+  const combats = Array.from(game.combats?.contents ?? game.combats ?? []);
+  return combats.some((combat) => {
+    if (!combat) return false;
+    if (combat.started === false) return false;
+    if (combat.round === 0 && combat.turn === null && combat.current === null && !combat.combatant) return false;
+    return String(combat?.scene?.id ?? combat?.sceneId ?? "").trim() === sid;
+  });
+}
+
+function formatSsFeetValue(value) {
+  const rounded = Math.round(Number(value ?? 0) * 10) / 10;
+  if (!Number.isFinite(rounded)) return "0";
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+function createSsMeasurementPoint(point) {
+  return {
+    x: Number(point?.x ?? 0),
+    y: Number(point?.y ?? 0)
+  };
+}
+
+function createSsRulerWaypoint(tokenDoc, point) {
+  return {
+    x: Number(point?.x ?? 0),
+    y: Number(point?.y ?? 0),
+    elevation: Number(point?.elevation ?? tokenDoc?.elevation ?? tokenDoc?._source?.elevation ?? 0) || 0,
+    width: Number(point?.width ?? tokenDoc?.width ?? tokenDoc?._source?.width ?? 1) || 1,
+    height: Number(point?.height ?? tokenDoc?.height ?? tokenDoc?._source?.height ?? 1) || 1,
+    shape: String(point?.shape ?? tokenDoc?.shape ?? tokenDoc?._source?.shape ?? "rectangle"),
+    action: String(point?.action ?? tokenDoc?.movementAction ?? "displace"),
+    snapped: point?.snapped ?? false,
+    explicit: point?.explicit ?? true,
+    checkpoint: point?.checkpoint ?? true,
+    intermediate: point?.intermediate ?? false
+  };
+}
+
+function getSsMeasurementDisplayPoint(tokenDoc, point) {
+  const x = Number(point?.x ?? NaN);
+  const y = Number(point?.y ?? NaN);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+
+  try {
+    const center = tokenDoc?.getCenterPoint?.({
+      x,
+      y,
+      elevation: Number(tokenDoc?.elevation ?? tokenDoc?._source?.elevation ?? 0) || 0,
+      width: Number(tokenDoc?.width ?? tokenDoc?._source?.width ?? 1) || 1,
+      height: Number(tokenDoc?.height ?? tokenDoc?._source?.height ?? 1) || 1
+    });
+    if (Number.isFinite(center?.x) && Number.isFinite(center?.y)) return center;
+  } catch (_err) {
+    // noop
+  }
+
+  const gridSize = Number(tokenDoc?.parent?.grid?.size ?? canvas?.grid?.size ?? 100) || 100;
+  const tokenW = (Number(tokenDoc?.width ?? tokenDoc?._source?.width ?? 1) || 1) * gridSize;
+  const tokenH = (Number(tokenDoc?.height ?? tokenDoc?._source?.height ?? 1) || 1) * gridSize;
+  return {
+    x: x + (tokenW / 2),
+    y: y + (tokenH / 2)
+  };
+}
+
+function getSsSceneDistanceUnit(sceneDoc) {
+  const unit = String(
+    sceneDoc?.grid?.units
+    ?? canvas?.scene?.grid?.units
+    ?? game.i18n?.localize?.("GRID.Feet")
+    ?? "ft"
+  ).trim();
+  return unit || "ft";
+}
+
+function getSsGmBurstRulerContainer() {
+  if (!game.user?.isGM || !canvas?.ready) return null;
+  const parent = canvas.controls ?? canvas.tokens ?? canvas.stage ?? null;
+  if (!parent) return null;
+
+  let container = ssGmBurstRulerState.container ?? null;
+  if (container?.destroyed) container = null;
+  if (!container || (container.parent !== parent)) {
+    if (container?.parent) container.parent.removeChild(container);
+    container = new PIXI.Container();
+    container.name = "ss-gm-burst-ruler";
+    container.eventMode = "none";
+    parent.addChild(container);
+    ssGmBurstRulerState.container = container;
+  }
+  return container;
+}
+
+function clearSsGmBurstRulerOverlay(tokenId = "") {
+  const tid = String(tokenId ?? "").trim();
+  const container = ssGmBurstRulerState.container ?? null;
+  if (!tid || !container || container.destroyed) return;
+  const overlay = container.getChildByName?.(`ss-gm-burst-ruler-${tid}`) ?? null;
+  if (!overlay) return;
+  container.removeChild(overlay);
+  overlay.destroy({children: true});
+}
+
+function drawSsGmBurstRulerOverlay(tokenDoc, points = [], totalFeet = null) {
+  if (!game.user?.isGM || !tokenDoc?.id) return;
+  if (!Array.isArray(points) || points.length < 2) return;
+
+  const container = getSsGmBurstRulerContainer();
+  if (!container) return;
+
+  const centers = points
+    .map((point) => getSsMeasurementDisplayPoint(tokenDoc, point))
+    .filter((point) => Number.isFinite(point?.x) && Number.isFinite(point?.y));
+  if (centers.length < 2) return;
+
+  const tokenId = String(tokenDoc.id ?? "").trim();
+  clearSsGmBurstRulerOverlay(tokenId);
+
+  const overlay = new PIXI.Container();
+  overlay.name = `ss-gm-burst-ruler-${tokenId}`;
+  overlay.eventMode = "none";
+
+  const shadow = new PIXI.Graphics();
+  shadow.lineStyle(8, 0x091018, 0.5, 0.5);
+  shadow.moveTo(centers[0].x, centers[0].y);
+  for (let i = 1; i < centers.length; i += 1) shadow.lineTo(centers[i].x, centers[i].y);
+
+  const line = new PIXI.Graphics();
+  line.lineStyle(4, 0x6ee7ff, 0.95, 0.5);
+  line.moveTo(centers[0].x, centers[0].y);
+  for (let i = 1; i < centers.length; i += 1) line.lineTo(centers[i].x, centers[i].y);
+
+  const markers = new PIXI.Graphics();
+  markers.lineStyle(2, 0x072433, 0.95, 0.5);
+  centers.forEach((point, index) => {
+    const radius = index === (centers.length - 1) ? 7 : 5;
+    const fill = index === (centers.length - 1) ? 0xfef3c7 : 0x6ee7ff;
+    markers.beginFill(fill, 0.98);
+    markers.drawCircle(point.x, point.y, radius);
+    markers.endFill();
+  });
+
+  overlay.addChild(shadow, line, markers);
+
+  const measuredFeet = Number(totalFeet ?? NaN);
+  if (Number.isFinite(measuredFeet) && measuredFeet > 0) {
+    const labelText = `${formatSsFeetValue(measuredFeet)} ${getSsSceneDistanceUnit(tokenDoc?.parent ?? canvas?.scene ?? null)}`;
+    const labelStyle = new PIXI.TextStyle({
+      fill: 0xf8fafc,
+      fontFamily: "Signika, sans-serif",
+      fontSize: 22,
+      fontWeight: "700",
+      stroke: 0x08111b,
+      strokeThickness: 5,
+      lineJoin: "round"
+    });
+    const label = new PIXI.Text(labelText, labelStyle);
+    label.anchor?.set?.(0.5, 1);
+
+    const lastPoint = centers[centers.length - 1];
+    label.position.set(lastPoint.x, lastPoint.y - 16);
+
+    const paddingX = 12;
+    const paddingY = 8;
+    const bg = new PIXI.Graphics();
+    bg.beginFill(0x08111b, 0.84);
+    bg.lineStyle(2, 0x6ee7ff, 0.35, 0.5);
+    bg.drawRoundedRect(
+      label.x - ((label.width / 2) + paddingX),
+      label.y - label.height - paddingY,
+      label.width + (paddingX * 2),
+      label.height + (paddingY * 2),
+      10
+    );
+    bg.endFill();
+
+    overlay.addChild(bg, label);
+  }
+
+  container.addChild(overlay);
+}
+
+function measureSsMovementPathFeet(sceneDoc, points = []) {
+  if (!sceneDoc?.grid?.measurePath || !Array.isArray(points) || points.length < 2) return null;
+  const waypoints = points
+    .map((point) => createSsMeasurementPoint(point))
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+  if (waypoints.length < 2) return null;
+
+  try {
+    const result = sceneDoc.grid.measurePath(waypoints);
+    const distance = Number(result?.distance ?? NaN);
+    if (!Number.isFinite(distance) || distance <= 0) return null;
+    return Math.round(distance * 10) / 10;
+  } catch (_err) {
+    return null;
+  }
+}
+
+function measureSsTokenMoveFeet(sceneDoc, fromPos, toPos) {
+  const measured = measureSsMovementPathFeet(sceneDoc, [fromPos, toPos]);
+  if (measured !== null) return measured;
+
+  const gridSize = Number(sceneDoc?.grid?.size ?? canvas?.grid?.size ?? 100) || 100;
+  const gridDistance = Number(sceneDoc?.grid?.distance ?? canvas?.scene?.grid?.distance ?? 5) || 5;
+  if (!(gridSize > 0) || !(gridDistance > 0)) return null;
+
+  const fromX = Number(fromPos?.x ?? NaN);
+  const fromY = Number(fromPos?.y ?? NaN);
+  const toX = Number(toPos?.x ?? NaN);
+  const toY = Number(toPos?.y ?? NaN);
+  if (![fromX, fromY, toX, toY].every(Number.isFinite)) return null;
+
+  const dxCells = (toX - fromX) / gridSize;
+  const dyCells = (toY - fromY) / gridSize;
+  const rawFeet = Math.hypot(dxCells, dyCells) * gridDistance;
+  if (!Number.isFinite(rawFeet) || rawFeet <= 0) return null;
+  return Math.round(rawFeet * 10) / 10;
+}
+
+function getSsPlayerMovementStatus(actorId = "") {
+  const aid = String(actorId ?? "").trim();
+  if (!aid) return null;
+  const entry = ssPlayerMovementState.byActorId?.[aid];
+  if (!entry || typeof entry !== "object") return null;
+  if (Number(entry.hideAt ?? 0) <= Date.now()) {
+    if (entry.timer) window.clearTimeout(entry.timer);
+    delete ssPlayerMovementState.byActorId[aid];
+    return null;
+  }
+  const lastFeet = Number(entry.lastFeet ?? 0);
+  const totalFeet = Number(entry.totalFeet ?? 0);
+  const hasBurst = totalFeet > (lastFeet + 0.05);
+  return {
+    lastFeet,
+    totalFeet,
+    text: hasBurst
+      ? `Moved ${formatSsFeetValue(lastFeet)} ft. Total ${formatSsFeetValue(totalFeet)} ft.`
+      : `Moved ${formatSsFeetValue(lastFeet)} ft.`
+  };
+}
+
+function syncOpenSheetDpadMovementNotes() {
+  if (game.user?.isGM) return;
+  document.querySelectorAll(SS_SHEET_FORM_SELECTOR).forEach((form) => {
+    if (typeof form.__ssRenderDpadMoveNote === "function") {
+      try {
+        form.__ssRenderDpadMoveNote();
+      } catch (_err) {
+        // noop
+      }
+    }
+  });
+}
+
+function clearSsGmBurstRuler(tokenDoc, userId = game.user?.id ?? "") {
+  if (!game.user?.isGM) return;
+  const token = tokenDoc?.object ?? canvas.tokens?.get?.(tokenDoc?.id ?? "");
+  clearSsGmBurstRulerOverlay(tokenDoc?.id ?? "");
+  if (!token) return;
+  if (userId in token._plannedMovement) {
+    delete token._plannedMovement[userId];
+  }
+  try {
+    tokenDoc?.clearMovementHistory?.();
+  } catch (_err) {
+    // noop
+  }
+  token.renderFlags?.set?.({refreshRuler: true, refreshState: true});
+}
+
+function resetSsGmBurstRulerIfExpired(tokenDoc) {
+  if (!game.user?.isGM || !tokenDoc?.id) return;
+  const tokenId = String(tokenDoc.id ?? "").trim();
+  if (!tokenId) return;
+  const prior = ssGmBurstRulerState.byTokenId?.[tokenId];
+  if (!prior) return;
+  const expired = (Date.now() - Number(prior.lastAt ?? 0)) > SS_PLAYER_MOVEMENT_BURST_MS;
+  if (!expired) return;
+  if (prior.timer) window.clearTimeout(prior.timer);
+  clearSsGmBurstRuler(tokenDoc, prior.userId);
+  delete ssGmBurstRulerState.byTokenId[tokenId];
+}
+
+function recordSsGmBurstRuler(tokenDoc, previous = null, next = null) {
+  if (!game.user?.isGM || !tokenDoc?.id) return;
+
+  const tokenId = String(tokenDoc.id ?? "").trim();
+  if (!tokenId) return;
+  const now = Date.now();
+  const prior = ssGmBurstRulerState.byTokenId?.[tokenId];
+  const currentPoint = createSsMeasurementPoint({
+    x: Number(next?.x ?? tokenDoc.x ?? 0),
+    y: Number(next?.y ?? tokenDoc.y ?? 0)
+  });
+  const withinBurst = prior && ((now - Number(prior.lastAt ?? 0)) <= SS_PLAYER_MOVEMENT_BURST_MS);
+  const points = withinBurst
+    ? [...(Array.isArray(prior.points) ? prior.points : []), currentPoint]
+    : [
+      createSsMeasurementPoint({
+        x: Number(previous?.x ?? prior?.origin?.x ?? tokenDoc.x ?? 0),
+        y: Number(previous?.y ?? prior?.origin?.y ?? tokenDoc.y ?? 0)
+      }),
+      currentPoint
+    ];
+  const dedupedPoints = points.filter((point, index, arr) => (
+    index === 0
+    || point.x !== arr[index - 1]?.x
+    || point.y !== arr[index - 1]?.y
+  ));
+  const sceneDoc = tokenDoc?.parent ?? game.scenes?.viewed ?? canvas?.scene ?? null;
+  const totalFeet = measureSsMovementPathFeet(sceneDoc, dedupedPoints);
+  if (prior?.timer) window.clearTimeout(prior.timer);
+  const timer = window.setTimeout(() => {
+    const current = ssGmBurstRulerState.byTokenId?.[tokenId];
+    if (!current || current.timer !== timer) return;
+    clearSsGmBurstRuler(tokenDoc, current.userId);
+    delete ssGmBurstRulerState.byTokenId[tokenId];
+  }, SS_PLAYER_MOVEMENT_DISPLAY_MS + 25);
+
+  ssGmBurstRulerState.byTokenId[tokenId] = {
+    lastAt: now,
+    origin: withinBurst ? prior.origin : dedupedPoints[0],
+    points: dedupedPoints,
+    totalFeet,
+    timer,
+    userId: game.user.id
+  };
+  drawSsGmBurstRulerOverlay(tokenDoc, dedupedPoints, totalFeet);
+}
+
+function recordSsMovementBurst(actorId = "", sceneId = "", sceneDoc = null, previous = null, next = null) {
+  const aid = String(actorId ?? "").trim();
+  const sid = String(sceneId ?? "").trim();
+  if (!aid || !sid || !sceneDoc) return null;
+
+  const feet = measureSsTokenMoveFeet(sceneDoc, previous, next);
+  if (!(feet > 0)) return null;
+
+  const now = Date.now();
+  const prevStatus = ssPlayerMovementState.byActorId?.[aid];
+  const withinBurst = prevStatus
+    && (String(prevStatus.sceneId ?? "").trim() === sid)
+    && ((now - Number(prevStatus.lastMovedAt ?? 0)) <= SS_PLAYER_MOVEMENT_BURST_MS);
+  const points = withinBurst
+    ? [...(Array.isArray(prevStatus.points) ? prevStatus.points : []), createSsMeasurementPoint(next)]
+    : [createSsMeasurementPoint(previous), createSsMeasurementPoint(next)];
+  const totalFeet = measureSsMovementPathFeet(sceneDoc, points) ?? feet;
+  const hideAt = now + SS_PLAYER_MOVEMENT_DISPLAY_MS;
+
+  if (prevStatus?.timer) window.clearTimeout(prevStatus.timer);
+  const status = {
+    lastFeet: feet,
+    totalFeet,
+    lastMovedAt: now,
+    hideAt,
+    timer: window.setTimeout(() => {
+      const current = ssPlayerMovementState.byActorId?.[aid];
+      if (current?.hideAt !== hideAt) return;
+      delete ssPlayerMovementState.byActorId[aid];
+      syncOpenSheetDpadMovementNotes();
+    }, SS_PLAYER_MOVEMENT_DISPLAY_MS + 25),
+    points,
+    sceneId: sid
+  };
+  ssPlayerMovementState.byActorId[aid] = status;
+  return status;
+}
+
+function noteSsPlayerMovementFromTokenUpdate(tokenDoc, changed = {}) {
+  if (game.user?.isGM) return;
+
+  const movedX = Object.prototype.hasOwnProperty.call(changed ?? {}, "x");
+  const movedY = Object.prototype.hasOwnProperty.call(changed ?? {}, "y");
+  if (!movedX && !movedY) {
+    rememberSsTokenPosition(tokenDoc);
+    return;
+  }
+
+  const sceneId = String(tokenDoc?.parent?.id ?? game.scenes?.viewed?.id ?? "").trim();
+  const actorId = String(tokenDoc?.actorId ?? tokenDoc?.actor?.id ?? "").trim();
+  const cacheKey = getSsTokenPositionCacheKey(tokenDoc);
+  const previous = cacheKey ? ssPlayerMovementState.tokenPositions?.[cacheKey] : null;
+  const next = {
+    x: Number(tokenDoc?.x ?? changed?.x ?? 0),
+    y: Number(tokenDoc?.y ?? changed?.y ?? 0)
+  };
+  if (cacheKey) ssPlayerMovementState.tokenPositions[cacheKey] = next;
+  if (!previous || !sceneId || !actorId) return;
+  if (isSsSceneInActiveCombat(sceneId)) return;
+
+  const actorDoc = tokenDoc?.actor ?? game.actors?.get?.(actorId) ?? null;
+  const isOwner = !!actorDoc?.testUserPermission?.(game.user, CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER);
+  if (!isOwner) return;
+
+  const activeActorId = getSsCurrentActiveActorId();
+  if (activeActorId && activeActorId !== actorId) return;
+
+  const sceneDoc = tokenDoc?.parent ?? game.scenes?.get?.(sceneId) ?? null;
+  const nextStatus = recordSsMovementBurst(actorId, sceneId, sceneDoc, previous, next);
+  if (!nextStatus) return;
+  syncOpenSheetDpadMovementNotes();
 }
 
 function emitPlayerControlsStateFromGm() {
@@ -6067,6 +6517,14 @@ function injectSheetDpad(app, element) {
       dpadPingBtn.setAttribute("title", "Open Ping");
       overlay.appendChild(dpadPingBtn);
     }
+    let dpadMoveNote = overlay.querySelector(".ss-dpad-move-note");
+    if (!dpadMoveNote) {
+      dpadMoveNote = document.createElement("div");
+      dpadMoveNote.className = "ss-dpad-move-note";
+      dpadMoveNote.setAttribute("aria-live", "polite");
+      dpadMoveNote.hidden = true;
+      overlay.appendChild(dpadMoveNote);
+    }
     let dpadLockNote = overlay.querySelector(".ss-dpad-lock-note");
     if (!dpadLockNote) {
       dpadLockNote = document.createElement("div");
@@ -6613,6 +7071,14 @@ function injectSheetDpad(app, element) {
       } else {
         dpadLockNote.textContent = "";
       }
+      const movementStatus = getSsPlayerMovementStatus(actor?.id ?? "");
+      if (movementStatus && !getActiveCombatForViewedScene()) {
+        dpadMoveNote.hidden = false;
+        dpadMoveNote.textContent = movementStatus.text;
+      } else {
+        dpadMoveNote.hidden = true;
+        dpadMoveNote.textContent = "";
+      }
       overlay.querySelectorAll(".ss-dpad-dir-btn").forEach((btn) => {
         if (!(btn instanceof HTMLButtonElement)) return;
         btn.disabled = dpadLocked;
@@ -6638,6 +7104,7 @@ function injectSheetDpad(app, element) {
       queueMeasuredBottomNavOffsets();
     };
     scope.__ssSyncDpad = sync;
+    scope.__ssRenderDpadMoveNote = sync;
 
     const openTargetPanel = ({ openFromUse = false } = {}) => {
       const enabled = isDpadEnabledByGm();
@@ -6859,6 +7326,7 @@ function injectSheetDpad(app, element) {
       overlay.remove();
       targetOverlay?.remove();
       delete scope.__ssSyncDpad;
+      delete scope.__ssRenderDpadMoveNote;
       delete scope.__ssRenderTargetPanel;
       if (ssDpadNavObserverByForm.has(scope)) {
         ssDpadNavObserverByForm.get(scope)?.disconnect();
@@ -6962,6 +7430,7 @@ Hooks.on("ready", () => {
   if (game.user?.isGM) return;
   setDpadEnabledOverride(isDpadEnabledByGm());
   syncPlayerPauseBanner(!!game.paused);
+  seedSsViewedSceneTokenPositions();
 
   const run = () => {
     const forms = document.querySelectorAll(SS_SHEET_FORM_SELECTOR);
@@ -7065,8 +7534,11 @@ Hooks.on("updateUser", (user, changed) => {
 });
 
 Hooks.on("canvasReady", () => {
-  if (!game.user?.isGM) return;
-  queueSsDpadViewportLockSyncFromGm();
+  if (game.user?.isGM) {
+    queueSsDpadViewportLockSyncFromGm();
+    return;
+  }
+  seedSsViewedSceneTokenPositions();
 });
 
 Hooks.on("canvasPan", (_canvas, panData) => {
@@ -7076,21 +7548,30 @@ Hooks.on("canvasPan", (_canvas, panData) => {
 });
 
 Hooks.on("createToken", (tokenDoc) => {
-  if (!game.user?.isGM) return;
-  const sid = String(tokenDoc?.parent?.id ?? game.scenes?.viewed?.id ?? canvas?.scene?.id ?? "").trim();
-  queueSsDpadViewportLockSyncFromGm(sid);
+  if (game.user?.isGM) {
+    const sid = String(tokenDoc?.parent?.id ?? game.scenes?.viewed?.id ?? canvas?.scene?.id ?? "").trim();
+    queueSsDpadViewportLockSyncFromGm(sid);
+    return;
+  }
+  rememberSsTokenPosition(tokenDoc);
 });
 
-Hooks.on("updateToken", (tokenDoc) => {
-  if (!game.user?.isGM) return;
-  const sid = String(tokenDoc?.parent?.id ?? game.scenes?.viewed?.id ?? canvas?.scene?.id ?? "").trim();
-  queueSsDpadViewportLockSyncFromGm(sid);
+Hooks.on("updateToken", (tokenDoc, changed) => {
+  if (game.user?.isGM) {
+    const sid = String(tokenDoc?.parent?.id ?? game.scenes?.viewed?.id ?? canvas?.scene?.id ?? "").trim();
+    queueSsDpadViewportLockSyncFromGm(sid);
+    return;
+  }
+  noteSsPlayerMovementFromTokenUpdate(tokenDoc, changed);
 });
 
 Hooks.on("deleteToken", (tokenDoc) => {
-  if (!game.user?.isGM) return;
-  const sid = String(tokenDoc?.parent?.id ?? game.scenes?.viewed?.id ?? canvas?.scene?.id ?? "").trim();
-  queueSsDpadViewportLockSyncFromGm(sid);
+  if (game.user?.isGM) {
+    const sid = String(tokenDoc?.parent?.id ?? game.scenes?.viewed?.id ?? canvas?.scene?.id ?? "").trim();
+    queueSsDpadViewportLockSyncFromGm(sid);
+    return;
+  }
+  forgetSsTokenPosition(tokenDoc);
 });
 
 Hooks.on("createCombat", () => {
@@ -9684,7 +10165,17 @@ Hooks.once("ready", () => {
 
     const target = snapAndClampTokenPosition(tokenDoc, tokenDoc.x + dx, tokenDoc.y + dy, size);
     if (target.x === tokenDoc.x && target.y === tokenDoc.y) return;
-    await tokenDoc.update(target);
+    resetSsGmBurstRulerIfExpired(tokenDoc);
+    const previous = {x: Number(tokenDoc.x ?? 0), y: Number(tokenDoc.y ?? 0)};
+    await tokenDoc.move(target, {
+      method: "dragging",
+      showRuler: true,
+      constrainOptions: {
+        ignoreWalls: true,
+        ignoreCost: true
+      }
+    });
+    recordSsGmBurstRuler(tokenDoc, previous, target);
   };
   globalThis.__SS_EXECUTE_DPAD_COMMAND__ = executeDpadCommand;
 
