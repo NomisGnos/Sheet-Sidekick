@@ -110,7 +110,7 @@ Current localization coverage focuses on the module manifest languages, settings
 2. Click `Install Module`.
 3. Paste this manifest URL into the `Manifest URL` field:
 
-`https://raw.githubusercontent.com/NomisGnos/Sheet-Sidekick/v0.1.2/module.json`
+`https://raw.githubusercontent.com/NomisGnos/Sheet-Sidekick/main/module.json`
 
 4. Install the module and enable it in your world.
 
@@ -156,14 +156,15 @@ This repository uses the GitHub remote:
 The release-shaped manifest now points at:
 
 - repository page: `https://github.com/NomisGnos/Sheet-Sidekick`
-- tagged manifest: `https://raw.githubusercontent.com/NomisGnos/Sheet-Sidekick/v0.1.2/module.json`
+- latest manifest: `https://raw.githubusercontent.com/NomisGnos/Sheet-Sidekick/main/module.json`
 - release ZIP asset: `https://github.com/NomisGnos/Sheet-Sidekick/releases/download/v0.1.2/sheet-sidekick.zip`
 
 Before sharing the manifest publicly, make sure GitHub has:
 
-1. a `v0.1.2` tag
-2. a `v0.1.2` release
-3. an uploaded release asset named `sheet-sidekick.zip`
+1. `main` updated with this `module.json`
+2. a `v0.1.2` tag
+3. a `v0.1.2` release
+4. an uploaded release asset named `sheet-sidekick.zip`
 
 Once those exist, the manifest is in the right shape for public installation.
 
