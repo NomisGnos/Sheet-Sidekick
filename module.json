@@ -2,41 +2,47 @@
   "id": "sheet-sidekick",
   "title": "Sheet Sidekick",
   "description": "Mobile-first character sheet companion for Foundry VTT with GM-assisted movement, targeting, map pings, rests, and journal sharing.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "url": "https://github.com/NomisGnos/Sheet-Sidekick",
-  "manifest": "https://raw.githubusercontent.com/NomisGnos/Sheet-Sidekick/v0.1.1/module.json",
-  "download": "https://github.com/NomisGnos/Sheet-Sidekick/releases/download/v0.1.1/sheet-sidekick.zip",
-  "readme": "https://github.com/NomisGnos/Sheet-Sidekick/blob/v0.1.1/README.md",
+  "manifest": "https://raw.githubusercontent.com/NomisGnos/Sheet-Sidekick/v0.1.2/module.json",
+  "download": "https://github.com/NomisGnos/Sheet-Sidekick/releases/download/v0.1.2/sheet-sidekick.zip",
+  "readme": "https://github.com/NomisGnos/Sheet-Sidekick/blob/v0.1.2/README.md",
   "bugs": "https://github.com/NomisGnos/Sheet-Sidekick/issues",
   "authors": [
     {
-      "name": "Simon"
+      "name": "Simon",
+      "flags": {}
     }
   ],
   "compatibility": {
     "minimum": "13",
-    "verified": "13.351"
+    "verified": "14.360",
+    "maximum": "14"
   },
   "languages": [
     {
       "lang": "en",
       "name": "English",
-      "path": "lang/en.json"
+      "path": "lang/en.json",
+      "flags": {}
     },
     {
       "lang": "de",
       "name": "Deutsch",
-      "path": "lang/de.json"
+      "path": "lang/de.json",
+      "flags": {}
     },
     {
       "lang": "es",
       "name": "Espanol",
-      "path": "lang/es.json"
+      "path": "lang/es.json",
+      "flags": {}
     },
     {
       "lang": "it",
       "name": "Italiano",
-      "path": "lang/it.json"
+      "path": "lang/it.json",
+      "flags": {}
     }
   ],
   "esmodules": [
@@ -44,9 +50,14 @@
     "sheet-sidekick.js"
   ],
   "styles": [
-    "sheet-sidekick-core.css",
-    "sheet-sidekick.css"
+    {
+      "src": "sheet-sidekick-core.css"
+    },
+    {
+      "src": "sheet-sidekick.css"
+    }
   ],
   "socket": true,
-  "type": "module"
+  "type": "module",
+  "flags": {}
 }

@@ -2,7 +2,7 @@
 
 Sheet Sidekick turns a phone or tablet into a player-facing companion sheet for Foundry VTT. It is built for tables that want a lightweight mobile experience without giving players the full canvas UI.
 
-The module currently focuses on Foundry VTT v13 and D&D5e character sheets. The player experience is designed around touch interaction, GM-assisted actions, and a cleaner handoff between the player device and the main table display.
+The module currently focuses on Foundry VTT v13/v14 and D&D5e character sheets. The player experience is designed around touch interaction, GM-assisted actions, and a cleaner handoff between the player device and the main table display.
 
 ## Highlights
 
@@ -15,6 +15,7 @@ The module currently focuses on Foundry VTT v13 and D&D5e character sheets. The 
 - Short Rest and Long Rest requests routed through the GM's normal D&D5e rest workflow
 - GM-side spell list parity for always-prepared spells
 - Vanilla journal image sharing from a single GM click
+- Foundry v14 compatibility fixes for player audio suppression, pause sync, targeting, and scene-scoped Target/Ping lists
 - English, German, Spanish, and Italian localization scaffolding for module settings and access panel UI
 
 ## Feature Tour
@@ -39,6 +40,7 @@ The module currently focuses on Foundry VTT v13 and D&D5e character sheets. The 
 
 - Players can open a target and ping workflow from the sheet
 - Live target syncing keeps the sidekick UI in step with GM-side target updates
+- Out-of-combat Target/Ping lists use the GM's current scene and reset manual additions when the GM changes scenes
 - Combat-aware restrictions can limit movement and targeting to the active turn
 - Target and combat lists label the active player character with `(YOU)` for clarity on shared or mirrored displays
 - GM-side token selection can be paired with player requests so the GM does not have to hunt for the correct token first
@@ -108,7 +110,7 @@ Current localization coverage focuses on the module manifest languages, settings
 2. Click `Install Module`.
 3. Paste this manifest URL into the `Manifest URL` field:
 
-`https://raw.githubusercontent.com/NomisGnos/Sheet-Sidekick/v0.1.0/module.json`
+`https://raw.githubusercontent.com/NomisGnos/Sheet-Sidekick/v0.1.2/module.json`
 
 4. Install the module and enable it in your world.
 
@@ -128,9 +130,22 @@ Current localization coverage focuses on the module manifest languages, settings
 ## Compatibility Notes
 
 - Primary target system: D&D5e
-- Foundry compatibility in the manifest currently targets v13
+- Foundry compatibility in the manifest targets v13 minimum and is verified for v14
+- Sheet Sidekick-enabled player clients suppress local audio playback so table audio stays GM-controlled
+- Player pause display and Target/Ping state are synced through Sheet Sidekick's socket channel for v13/v14 compatibility
 - The module contains compatibility handling for BG3 Inspired Hotbar token-control refreshes
 - Some GM-assisted flows rely on a GM being connected and active
+
+## Release Notes
+
+### v0.1.2
+
+- Verified the manifest for Foundry VTT v14 while retaining v13 support.
+- Fixed player-side audio suppression for v14 audio APIs.
+- Added socket-based pause-state sync so Sheet Sidekick players see when the GM pauses the game.
+- Fixed Select Target apply behavior for GM-authoritative targeting.
+- Reworked out-of-combat Target/Ping lists to use the GM's current scene.
+- Manual Target/Ping additions are now scene-scoped runtime entries and reset when the GM changes scenes.
 
 ## Distribution Notes
 
@@ -141,13 +156,13 @@ This repository uses the GitHub remote:
 The release-shaped manifest now points at:
 
 - repository page: `https://github.com/NomisGnos/Sheet-Sidekick`
-- tagged manifest: `https://raw.githubusercontent.com/NomisGnos/Sheet-Sidekick/v0.1.0/module.json`
-- release ZIP asset: `https://github.com/NomisGnos/Sheet-Sidekick/releases/download/v0.1.0/sheet-sidekick.zip`
+- tagged manifest: `https://raw.githubusercontent.com/NomisGnos/Sheet-Sidekick/v0.1.2/module.json`
+- release ZIP asset: `https://github.com/NomisGnos/Sheet-Sidekick/releases/download/v0.1.2/sheet-sidekick.zip`
 
 Before sharing the manifest publicly, make sure GitHub has:
 
-1. a `v0.1.0` tag
-2. a `v0.1.0` release
+1. a `v0.1.2` tag
+2. a `v0.1.2` release
 3. an uploaded release asset named `sheet-sidekick.zip`
 
 Once those exist, the manifest is in the right shape for public installation.

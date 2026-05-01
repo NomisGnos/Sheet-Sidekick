@@ -3055,13 +3055,15 @@ dialog.application.ss-use-confirm-dialog {
 	letter-spacing: 0.03em;
 }
 
-/* Players cannot increment/decrement quantity from sheet-sidekick inventory rows. */
+/* Allow quantity editing from Sheet Sidekick inventory rows. */
 :is(form.sheet-sidekick-sheet, form.ss-sheet) .item-detail.item-quantity .adjustment-button {
-	display: none !important;
+	display: inline-flex !important;
+	align-items: center;
+	justify-content: center;
 }
 
 :is(form.sheet-sidekick-sheet, form.ss-sheet) .item-detail.item-quantity input[data-name="system.quantity"] {
-	pointer-events: none !important;
+	pointer-events: auto !important;
 	max-width: 3.2rem;
 	text-align: center;
 }

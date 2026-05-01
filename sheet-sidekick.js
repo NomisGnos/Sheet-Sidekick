@@ -1323,20 +1323,45 @@ function renderUseConfirmAssistIntoScope(scope, state) {
 function getSsSceneDoc(sceneId = "") {
   const sid = String(sceneId ?? "").trim();
   if (sid) return game.scenes?.get?.(sid) ?? null;
+  let effectiveSid = "";
+  try {
+    effectiveSid = (typeof getSsEffectiveSceneId === "function")
+      ? String(getSsEffectiveSceneId({ preferCombat: false }) ?? "").trim()
+      : "";
+  } catch (_err) {
+    effectiveSid = "";
+  }
+  if (effectiveSid) {
+    return game.scenes?.get?.(effectiveSid)
+      ?? (String(game.scenes?.viewed?.id ?? "").trim() === effectiveSid ? game.scenes?.viewed ?? null : null);
+  }
   return game.scenes?.viewed ?? null;
+}
+
+function getSsCollectionDocuments(collection) {
+  if (!collection) return [];
+  if (Array.isArray(collection)) return collection.filter(Boolean);
+  if (Array.isArray(collection.contents)) return collection.contents.filter(Boolean);
+  if (typeof collection.values === "function") return Array.from(collection.values()).filter(Boolean);
+  if (typeof collection[Symbol.iterator] === "function") return Array.from(collection).filter(Boolean);
+  return [];
+}
+
+function getSsSceneTokenDocs(sceneDoc) {
+  return getSsCollectionDocuments(sceneDoc?.tokens);
 }
 
 const SS_TARGET_LIST_FLAG_KEY = "ssTargetListInclude";
 
-function readSsTargetListInclude(actor) {
-  if (!actor) return false;
+function readSsTargetListIncludeFromDocument(documentLike) {
+  if (!documentLike) return false;
   try {
-    const scoped = actor.getFlag?.(SS_MODULE_ID, SS_TARGET_LIST_FLAG_KEY);
+    const scoped = documentLike.getFlag?.(SS_MODULE_ID, SS_TARGET_LIST_FLAG_KEY);
     if (typeof scoped === "boolean") return scoped;
   } catch (_err) {
     // ignore and fall through to raw flags
   }
-  const flags = actor.flags ?? actor._source?.flags ?? {};
+  const flags = documentLike.flags ?? documentLike._source?.flags ?? {};
   const scopedRaw = foundry.utils.getProperty(flags, `${SS_MODULE_ID}.${SS_TARGET_LIST_FLAG_KEY}`);
   if (typeof scopedRaw === "boolean") return scopedRaw;
   // Legacy fallback only reads raw data to avoid invalid scope exceptions from getFlag.
@@ -1344,15 +1369,31 @@ function readSsTargetListInclude(actor) {
   return !!legacyRaw;
 }
 
-async function writeSsTargetListInclude(actor, enabled) {
-  if (!actor) return;
+function readSsTargetListInclude(actor) {
+  return readSsTargetListIncludeFromDocument(actor);
+}
+
+function readSsTargetListIncludeForToken(tokenDoc) {
+  return readSsTargetListIncludeFromDocument(tokenDoc);
+}
+
+async function writeSsTargetListIncludeForDocument(documentLike, enabled) {
+  if (!documentLike) return;
   const next = !!enabled;
   try {
-    await actor.setFlag(SS_MODULE_ID, SS_TARGET_LIST_FLAG_KEY, next);
+    await documentLike.setFlag(SS_MODULE_ID, SS_TARGET_LIST_FLAG_KEY, next);
     return;
   } catch (_err) {
-    await actor.update({ [`flags.${SS_MODULE_ID}.${SS_TARGET_LIST_FLAG_KEY}`]: next });
+    await documentLike.update({ [`flags.${SS_MODULE_ID}.${SS_TARGET_LIST_FLAG_KEY}`]: next });
   }
+}
+
+async function writeSsTargetListInclude(actor, enabled) {
+  await writeSsTargetListIncludeForDocument(actor, enabled);
+}
+
+async function writeSsTargetListIncludeForToken(tokenDoc, enabled) {
+  await writeSsTargetListIncludeForDocument(tokenDoc, enabled);
 }
 
 function getSsTargetTokenIdsForUserOnScene(user, sceneId) {
@@ -1360,7 +1401,7 @@ function getSsTargetTokenIdsForUserOnScene(user, sceneId) {
   if (!user) return [];
   const sceneDoc = getSsSceneDoc(sid);
   const sceneTokenIds = new Set(
-    Array.from(sceneDoc?.tokens?.contents ?? sceneDoc?.tokens ?? [])
+    getSsSceneTokenDocs(sceneDoc)
       .map((t) => String(t?.id ?? ""))
       .filter(Boolean)
   );
@@ -1433,7 +1474,7 @@ function getSsLiveTargetRefsForScene(sceneId = "", fallbackRefs = [], { includeF
 
 function getSsTargetNamesFromRefs(sceneId = "", refs = []) {
   const sceneDoc = getSsSceneDoc(sceneId);
-  const sceneTokens = Array.from(sceneDoc?.tokens?.contents ?? sceneDoc?.tokens ?? []);
+  const sceneTokens = getSsSceneTokenDocs(sceneDoc);
   const byId = new Map(sceneTokens.map((t) => [String(t?.id ?? ""), t]));
   const names = [];
   for (const ref of refs) {
@@ -1449,7 +1490,7 @@ function getSsTargetNamesFromRefs(sceneId = "", refs = []) {
 
 function getSsTargetEntriesFromRefs(sceneId = "", refs = []) {
   const sceneDoc = getSsSceneDoc(sceneId);
-  const sceneTokens = Array.from(sceneDoc?.tokens?.contents ?? sceneDoc?.tokens ?? []);
+  const sceneTokens = getSsSceneTokenDocs(sceneDoc);
   const byId = new Map(sceneTokens.map((t) => [String(t?.id ?? ""), t]));
   const entries = [];
   const seen = new Set();
@@ -1481,7 +1522,7 @@ function getUseConfirmTargetContext(state) {
 
   const sceneId =
     String(form?.querySelector?.(".ss-target-panel-overlay")?.dataset?.ssSceneId ?? "").trim()
-    || String(game.combat?.scene?.id ?? game.combat?.sceneId ?? game.scenes?.viewed?.id ?? "");
+    || String(game.combat?.scene?.id ?? game.combat?.sceneId ?? getSsEffectiveSceneId() ?? "");
 
   const refs = Array.from(getSsLiveTargetRefsForScene(sceneId, [], { includeFallback: false }));
   return { sceneId, refs, form };
@@ -1814,7 +1855,7 @@ function syncOpenTargetPanelsWithLiveTargets() {
       overlay.dataset?.ssSceneId
       ?? game.combat?.scene?.id
       ?? game.combat?.sceneId
-      ?? game.scenes?.viewed?.id
+      ?? getSsEffectiveSceneId()
       ?? ""
     ).trim();
     const refs = Array.from(getSsLiveTargetRefsForScene(sceneId));
@@ -1838,7 +1879,7 @@ function resetSsTargetsForActor(actor) {
   const sceneId = String(
     getActiveCombatForViewedScene()?.scene?.id
     ?? getActiveCombatForViewedScene()?.sceneId
-    ?? game.scenes?.viewed?.id
+    ?? getSsEffectiveSceneId({ preferCombat: false })
     ?? ""
   );
 
@@ -2264,11 +2305,13 @@ function shouldBlockClientAudio() {
 
   const name = String(user.name ?? "").trim().toLowerCase();
   if (SS_AUDIO_FORCE_BLOCK_USERNAMES.has(name)) return true;
+  if (user.isGM) return false;
 
   // Monks Common Display client should stay silent.
   if (isMonksCommonDisplayClient()) return true;
 
-  return !user.isGM;
+  const playerData = getSheetSidekickSetting("playerdata", {}) ?? {};
+  return !!playerData?.[user.id]?.display;
 }
 
 function isResolutionWarningMessage(message) {
@@ -2535,6 +2578,13 @@ const ssDpadViewportLockState = globalThis.__SS_DPAD_VIEWPORT_LOCK_STATE__ ?? (g
   gmUserId: "",
   at: 0
 });
+const ssGmSceneState = globalThis.__SS_GM_SCENE_STATE__ ?? (globalThis.__SS_GM_SCENE_STATE__ = {
+  sceneId: "",
+  at: 0
+});
+const ssManualTargetListState = globalThis.__SS_MANUAL_TARGET_LIST_STATE__ ?? (globalThis.__SS_MANUAL_TARGET_LIST_STATE__ = {
+  byScene: {}
+});
 const ssPlayerMovementState = globalThis.__SS_PLAYER_MOVEMENT_STATE__ ?? (globalThis.__SS_PLAYER_MOVEMENT_STATE__ = {
   tokenPositions: {},
   byActorId: {}
@@ -2569,6 +2619,104 @@ function isDpadEnabledByGm() {
   return true;
 }
 
+function getSsKnownGmSceneId() {
+  return String(
+    ssGmSceneState.sceneId
+    || ssDpadViewportLockState.sceneId
+    || game.scenes?.viewed?.id
+    || canvas?.scene?.id
+    || ""
+  ).trim();
+}
+
+function getSsEffectiveSceneId({ preferCombat = true } = {}) {
+  if (preferCombat) {
+    const combat = game.combat;
+    const combatSceneId = String(combat?.scene?.id ?? combat?.sceneId ?? "").trim();
+    const hasCombatants = !!(combat?.combatants?.size > 0 || getSsCollectionDocuments(combat?.combatants).length > 0);
+    if (hasCombatants && combatSceneId) return combatSceneId;
+  }
+  return getSsKnownGmSceneId();
+}
+
+function resetSsManualTargetListState() {
+  ssManualTargetListState.byScene = {};
+  try { globalThis.__SS_PROXY_TARGETS_BY_USER__?.clear?.(); } catch (_err) { /* noop */ }
+}
+
+function setSsGmSceneId(sceneId = "", { resetManualTargets = true } = {}) {
+  const sid = String(sceneId ?? "").trim();
+  if (!sid) return false;
+  const previous = String(ssGmSceneState.sceneId ?? "").trim();
+  const changed = previous && previous !== sid;
+  ssGmSceneState.sceneId = sid;
+  ssGmSceneState.at = Date.now();
+  if (changed && resetManualTargets) resetSsManualTargetListState();
+  return changed;
+}
+
+function getSsManualTargetList(sceneId = "") {
+  const sid = String(sceneId ?? getSsEffectiveSceneId({ preferCombat: false }) ?? "").trim();
+  if (!sid) return { actorIds: [], tokenIds: [] };
+  const current = ssManualTargetListState.byScene?.[sid] ?? {};
+  const actorIds = Array.from(new Set((Array.isArray(current.actorIds) ? current.actorIds : [])
+    .map((id) => String(id ?? "").trim())
+    .filter(Boolean)));
+  const tokenIds = Array.from(new Set((Array.isArray(current.tokenIds) ? current.tokenIds : [])
+    .map((id) => String(id ?? "").trim())
+    .filter(Boolean)));
+  ssManualTargetListState.byScene[sid] = { actorIds, tokenIds };
+  return ssManualTargetListState.byScene[sid];
+}
+
+function setSsManualTargetList(sceneId = "", { actorIds = [], tokenIds = [] } = {}) {
+  const sid = String(sceneId ?? "").trim();
+  if (!sid) return;
+  ssManualTargetListState.byScene[sid] = {
+    actorIds: Array.from(new Set((Array.isArray(actorIds) ? actorIds : []).map((id) => String(id ?? "").trim()).filter(Boolean))),
+    tokenIds: Array.from(new Set((Array.isArray(tokenIds) ? tokenIds : []).map((id) => String(id ?? "").trim()).filter(Boolean)))
+  };
+}
+
+function setSsManualTargetMembership({ sceneId = "", actorId = "", tokenId = "", enabled = false } = {}) {
+  const sid = String(sceneId ?? getSsEffectiveSceneId({ preferCombat: false }) ?? "").trim();
+  if (!sid) return;
+  const list = getSsManualTargetList(sid);
+  const aid = String(actorId ?? "").trim();
+  const tid = String(tokenId ?? "").trim();
+  const updateList = (items, value) => {
+    if (!value) return items;
+    const next = new Set(items);
+    if (enabled) next.add(value);
+    else next.delete(value);
+    return Array.from(next);
+  };
+  list.actorIds = updateList(list.actorIds, aid);
+  list.tokenIds = updateList(list.tokenIds, tid);
+}
+
+function isSsManualTargetIncluded(sceneId = "", tokenDoc = null, actorId = "") {
+  const list = getSsManualTargetList(sceneId);
+  const tid = String(tokenDoc?.id ?? "").trim();
+  const aid = String(actorId || tokenDoc?.actorId || tokenDoc?.actor?.id || "").trim();
+  return (!!tid && list.tokenIds.includes(tid)) || (!!aid && list.actorIds.includes(aid));
+}
+
+function emitSsManualTargetListStateFromGm(sceneId = "") {
+  if (!game.user?.isGM) return false;
+  const sid = String(sceneId ?? getSsEffectiveSceneId({ preferCombat: false }) ?? "").trim();
+  if (!sid) return false;
+  const list = getSsManualTargetList(sid);
+  return emitSsSocketMessage({
+    type: "ssTargetListState",
+    sceneId: sid,
+    actorIds: list.actorIds,
+    tokenIds: list.tokenIds,
+    at: Date.now(),
+    gmUserId: game.user?.id ?? null
+  });
+}
+
 function setPlayerDpadViewportLockState(payload = {}) {
   if (game.user?.isGM) return;
   const next = {
@@ -2592,6 +2740,8 @@ function setPlayerDpadViewportLockState(payload = {}) {
   ssDpadViewportLockState.sceneId = next.sceneId;
   ssDpadViewportLockState.gmUserId = next.gmUserId;
   ssDpadViewportLockState.at = next.at;
+  const sceneChanged = setSsGmSceneId(next.sceneId);
+  if (sceneChanged) queueSheetSidekickFormRefresh(80);
 }
 
 function getPlayerDpadViewportLockForActor(actorId = "") {
@@ -2717,8 +2867,50 @@ function getSsSceneDistanceUnit(sceneDoc) {
   return unit || "ft";
 }
 
+function getSsUserOverlayColor(userId = "") {
+  const uid = String(userId ?? "").trim();
+  if (!uid) return null;
+  const user = game.users?.get?.(uid) ?? null;
+  const css = String(user?.color?.css ?? user?.color ?? "").trim();
+  return css || null;
+}
+
+function normalizeSsOverlayColor(color, fallback = 0x6ee7ff) {
+  if (typeof color === "number" && Number.isFinite(color)) return color;
+  const raw = String(color ?? "").trim();
+  if (!raw) return fallback;
+
+  try {
+    if (globalThis.PIXI?.Color) {
+      return Number(new PIXI.Color(raw).toNumber());
+    }
+  } catch (_err) {
+    // noop
+  }
+
+  try {
+    if (typeof PIXI?.utils?.string2hex === "function") {
+      return Number(PIXI.utils.string2hex(raw));
+    }
+  } catch (_err) {
+    // noop
+  }
+
+  const hex = raw.replace(/^#/, "");
+  if (/^[\da-f]{6}$/i.test(hex)) {
+    const parsed = Number.parseInt(hex, 16);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+function canRenderSsBurstRulerOverlay() {
+  if (!canvas?.ready || !game.user) return false;
+  return !!(game.user.isGM || isMonksCommonDisplayClient());
+}
+
 function getSsGmBurstRulerContainer() {
-  if (!game.user?.isGM || !canvas?.ready) return null;
+  if (!canRenderSsBurstRulerOverlay()) return null;
   const parent = canvas.controls ?? canvas.tokens ?? canvas.stage ?? null;
   if (!parent) return null;
 
@@ -2745,8 +2937,8 @@ function clearSsGmBurstRulerOverlay(tokenId = "") {
   overlay.destroy({children: true});
 }
 
-function drawSsGmBurstRulerOverlay(tokenDoc, points = [], totalFeet = null) {
-  if (!game.user?.isGM || !tokenDoc?.id) return;
+function drawSsGmBurstRulerOverlay(tokenDoc, points = [], totalFeet = null, accentColor = null) {
+  if (!canRenderSsBurstRulerOverlay() || !tokenDoc?.id) return;
   if (!Array.isArray(points) || points.length < 2) return;
 
   const container = getSsGmBurstRulerContainer();
@@ -2763,6 +2955,8 @@ function drawSsGmBurstRulerOverlay(tokenDoc, points = [], totalFeet = null) {
   const overlay = new PIXI.Container();
   overlay.name = `ss-gm-burst-ruler-${tokenId}`;
   overlay.eventMode = "none";
+  const lineColor = normalizeSsOverlayColor(accentColor, 0x6ee7ff);
+  const markerBorder = 0x072433;
 
   const shadow = new PIXI.Graphics();
   shadow.lineStyle(8, 0x091018, 0.5, 0.5);
@@ -2770,15 +2964,15 @@ function drawSsGmBurstRulerOverlay(tokenDoc, points = [], totalFeet = null) {
   for (let i = 1; i < centers.length; i += 1) shadow.lineTo(centers[i].x, centers[i].y);
 
   const line = new PIXI.Graphics();
-  line.lineStyle(4, 0x6ee7ff, 0.95, 0.5);
+  line.lineStyle(4, lineColor, 0.95, 0.5);
   line.moveTo(centers[0].x, centers[0].y);
   for (let i = 1; i < centers.length; i += 1) line.lineTo(centers[i].x, centers[i].y);
 
   const markers = new PIXI.Graphics();
-  markers.lineStyle(2, 0x072433, 0.95, 0.5);
+  markers.lineStyle(2, markerBorder, 0.95, 0.5);
   centers.forEach((point, index) => {
     const radius = index === (centers.length - 1) ? 7 : 5;
-    const fill = index === (centers.length - 1) ? 0xfef3c7 : 0x6ee7ff;
+    const fill = index === (centers.length - 1) ? 0xfef3c7 : lineColor;
     markers.beginFill(fill, 0.98);
     markers.drawCircle(point.x, point.y, radius);
     markers.endFill();
@@ -2790,7 +2984,7 @@ function drawSsGmBurstRulerOverlay(tokenDoc, points = [], totalFeet = null) {
   if (Number.isFinite(measuredFeet) && measuredFeet > 0) {
     const labelText = `${formatSsFeetValue(measuredFeet)} ${getSsSceneDistanceUnit(tokenDoc?.parent ?? canvas?.scene ?? null)}`;
     const labelStyle = new PIXI.TextStyle({
-      fill: 0xf8fafc,
+      fill: lineColor,
       fontFamily: "Signika, sans-serif",
       fontSize: 22,
       fontWeight: "700",
@@ -2808,7 +3002,7 @@ function drawSsGmBurstRulerOverlay(tokenDoc, points = [], totalFeet = null) {
     const paddingY = 8;
     const bg = new PIXI.Graphics();
     bg.beginFill(0x08111b, 0.84);
-    bg.lineStyle(2, 0x6ee7ff, 0.35, 0.5);
+    bg.lineStyle(2, lineColor, 0.45, 0.5);
     bg.drawRoundedRect(
       label.x - ((label.width / 2) + paddingX),
       label.y - label.height - paddingY,
@@ -2822,6 +3016,76 @@ function drawSsGmBurstRulerOverlay(tokenDoc, points = [], totalFeet = null) {
   }
 
   container.addChild(overlay);
+}
+
+function clearSsBurstRulerOverlayTimer(tokenId = "") {
+  const tid = String(tokenId ?? "").trim();
+  if (!tid) return;
+  const entry = ssGmBurstRulerState.byTokenId?.[tid];
+  if (!entry?.overlayTimer) return;
+  window.clearTimeout(entry.overlayTimer);
+  delete entry.overlayTimer;
+}
+
+function scheduleSsBurstRulerOverlayClear(tokenDoc, delayMs = SS_PLAYER_MOVEMENT_DISPLAY_MS) {
+  const tokenId = String(tokenDoc?.id ?? "").trim();
+  if (!tokenId) return;
+  clearSsBurstRulerOverlayTimer(tokenId);
+  const timer = window.setTimeout(() => {
+    const current = ssGmBurstRulerState.byTokenId?.[tokenId];
+    if (current?.overlayTimer !== timer) return;
+    clearSsGmBurstRulerOverlay(tokenId);
+    delete current.overlayTimer;
+    if (!game.user?.isGM && !current?.timer) {
+      delete ssGmBurstRulerState.byTokenId[tokenId];
+    }
+  }, Math.max(50, Number(delayMs ?? SS_PLAYER_MOVEMENT_DISPLAY_MS)) + 25);
+  ssGmBurstRulerState.byTokenId[tokenId] = {
+    ...(ssGmBurstRulerState.byTokenId?.[tokenId] ?? {}),
+    overlayTimer: timer
+  };
+}
+
+function handleSsBurstRulerSocketForPlayer(data = {}) {
+  if (game.user?.isGM) return;
+  if (!isMonksCommonDisplayClient()) return;
+
+  const viewedSceneId = String(game.scenes?.viewed?.id ?? canvas?.scene?.id ?? "").trim();
+  const sceneId = String(data.sceneId ?? "").trim();
+  if (sceneId && viewedSceneId && sceneId !== viewedSceneId) return;
+
+  const tokenId = String(data.tokenId ?? "").trim();
+  if (!tokenId) return;
+
+  const tokenDoc = game.scenes?.viewed?.tokens?.get?.(tokenId)
+    ?? canvas?.scene?.tokens?.get?.(tokenId)
+    ?? null;
+  if (!tokenDoc) return;
+
+  if (String(data.action ?? "").trim() === "clear") {
+    clearSsBurstRulerOverlayTimer(tokenId);
+    clearSsGmBurstRulerOverlay(tokenId);
+    delete ssGmBurstRulerState.byTokenId[tokenId];
+    return;
+  }
+
+  const points = Array.isArray(data.points)
+    ? data.points.map((point) => createSsMeasurementPoint(point))
+    : [];
+  if (points.length < 2) return;
+
+  const totalFeet = Number(data.totalFeet ?? NaN);
+  const color = getSsUserOverlayColor(String(data.userId ?? "").trim()) ?? data.color ?? null;
+  drawSsGmBurstRulerOverlay(tokenDoc, points, Number.isFinite(totalFeet) ? totalFeet : null, color);
+  const remaining = Math.max(50, Number(data.hideAt ?? 0) - Date.now());
+  ssGmBurstRulerState.byTokenId[tokenId] = {
+    ...(ssGmBurstRulerState.byTokenId?.[tokenId] ?? {}),
+    lastAt: Date.now(),
+    points,
+    totalFeet: Number.isFinite(totalFeet) ? totalFeet : null,
+    color
+  };
+  scheduleSsBurstRulerOverlayClear(tokenDoc, remaining);
 }
 
 function measureSsMovementPathFeet(sceneDoc, points = []) {
@@ -2898,9 +3162,9 @@ function syncOpenSheetDpadMovementNotes() {
 }
 
 function clearSsGmBurstRuler(tokenDoc, userId = game.user?.id ?? "") {
+  clearSsGmBurstRulerOverlay(tokenDoc?.id ?? "");
   if (!game.user?.isGM) return;
   const token = tokenDoc?.object ?? canvas.tokens?.get?.(tokenDoc?.id ?? "");
-  clearSsGmBurstRulerOverlay(tokenDoc?.id ?? "");
   if (!token) return;
   if (userId in token._plannedMovement) {
     delete token._plannedMovement[userId];
@@ -2911,6 +3175,14 @@ function clearSsGmBurstRuler(tokenDoc, userId = game.user?.id ?? "") {
     // noop
   }
   token.renderFlags?.set?.({refreshRuler: true, refreshState: true});
+  emitSsSocketMessage({
+    type: "ssBurstRuler",
+    action: "clear",
+    sceneId: String(tokenDoc?.parent?.id ?? game.scenes?.viewed?.id ?? canvas?.scene?.id ?? "").trim(),
+    tokenId: String(tokenDoc?.id ?? "").trim(),
+    at: Date.now(),
+    gmUserId: game.user?.id ?? null
+  });
 }
 
 function resetSsGmBurstRulerIfExpired(tokenDoc) {
@@ -2926,13 +3198,15 @@ function resetSsGmBurstRulerIfExpired(tokenDoc) {
   delete ssGmBurstRulerState.byTokenId[tokenId];
 }
 
-function recordSsGmBurstRuler(tokenDoc, previous = null, next = null) {
+function recordSsGmBurstRuler(tokenDoc, previous = null, next = null, userId = "") {
   if (!game.user?.isGM || !tokenDoc?.id) return;
 
   const tokenId = String(tokenDoc.id ?? "").trim();
   if (!tokenId) return;
   const now = Date.now();
   const prior = ssGmBurstRulerState.byTokenId?.[tokenId];
+  const moverUserId = String(userId ?? prior?.moverUserId ?? "").trim();
+  const color = getSsUserOverlayColor(moverUserId) ?? prior?.color ?? null;
   const currentPoint = createSsMeasurementPoint({
     x: Number(next?.x ?? tokenDoc.x ?? 0),
     y: Number(next?.y ?? tokenDoc.y ?? 0)
@@ -2967,10 +3241,25 @@ function recordSsGmBurstRuler(tokenDoc, previous = null, next = null) {
     origin: withinBurst ? prior.origin : dedupedPoints[0],
     points: dedupedPoints,
     totalFeet,
+    color,
+    moverUserId,
     timer,
     userId: game.user.id
   };
-  drawSsGmBurstRulerOverlay(tokenDoc, dedupedPoints, totalFeet);
+  drawSsGmBurstRulerOverlay(tokenDoc, dedupedPoints, totalFeet, color);
+  emitSsSocketMessage({
+    type: "ssBurstRuler",
+    action: "show",
+    sceneId: String(sceneDoc?.id ?? tokenDoc?.parent?.id ?? game.scenes?.viewed?.id ?? canvas?.scene?.id ?? "").trim(),
+    tokenId,
+    points: dedupedPoints,
+    totalFeet,
+    color,
+    userId: moverUserId,
+    hideAt: now + SS_PLAYER_MOVEMENT_DISPLAY_MS,
+    at: now,
+    gmUserId: game.user?.id ?? null
+  });
 }
 
 function recordSsMovementBurst(actorId = "", sceneId = "", sceneDoc = null, previous = null, next = null) {
@@ -3111,8 +3400,15 @@ function buildSsDpadViewportLockMapForGm(sceneId = "") {
     : (game.scenes?.viewed ?? null);
   if (!sceneDoc) return {};
 
-  const tokens = Array.from(sceneDoc?.tokens?.contents ?? sceneDoc?.tokens ?? []);
-  const actors = Array.from(game.actors?.filter?.((a) => a?.type === "character" && a.hasPlayerOwner) ?? []);
+  const tokens = getSsSceneTokenDocs(sceneDoc);
+  const ownerLevel = CONST?.DOCUMENT_OWNERSHIP_LEVELS?.OWNER ?? 3;
+  const actors = getSsCollectionDocuments(game.actors)
+    .filter((a) => {
+      if (a?.type !== "character") return false;
+      const hasPlayerOwner = (typeof a.hasPlayerOwner === "function") ? a.hasPlayerOwner() : a.hasPlayerOwner;
+      if (hasPlayerOwner) return true;
+      return getSsCollectionDocuments(game.users).some((u) => !u?.isGM && a.testUserPermission?.(u, ownerLevel));
+    });
   const byActorId = {};
 
   for (const actor of actors) {
@@ -3138,6 +3434,7 @@ function buildSsDpadViewportLockMapForGm(sceneId = "") {
 function emitSsDpadViewportLockStateFromGm(sceneId = "") {
   if (!game.user?.isGM) return;
   const sid = String(sceneId ?? game.scenes?.viewed?.id ?? canvas?.scene?.id ?? "").trim();
+  setSsGmSceneId(sid);
   emitSsSocketMessage({
     type: "ssDpadViewportLock",
     sceneId: sid,
@@ -3145,6 +3442,7 @@ function emitSsDpadViewportLockStateFromGm(sceneId = "") {
     at: Date.now(),
     gmUserId: game.user?.id ?? null
   });
+  emitSsManualTargetListStateFromGm(sid);
 }
 
 function queueSsTargetUiSyncFromGm(sceneId = "") {
@@ -3210,12 +3508,23 @@ function syncPlayerPauseBanner(paused = null) {
   document.body?.classList?.toggle("ss-player-game-paused", isPaused);
 }
 
+function emitSsPauseStateFromGm(paused = null) {
+  if (!game.user?.isGM) return false;
+  const isPaused = (typeof paused === "boolean") ? paused : !!game.paused;
+  return emitSsSocketMessage({
+    type: "ssPause",
+    paused: isPaused,
+    at: Date.now(),
+    gmUserId: game.user?.id ?? null
+  });
+}
+
 function getActiveCombatForViewedScene() {
   const combat = game.combat;
   if (!combat) return null;
   if (!(combat.combatants?.size > 0)) return null;
 
-  const viewedSceneId = game.scenes?.viewed?.id ?? null;
+  const viewedSceneId = getSsKnownGmSceneId() || null;
   const combatSceneId = combat?.scene?.id ?? combat?.sceneId ?? null;
   if (viewedSceneId && combatSceneId && viewedSceneId !== combatSceneId) return null;
 
@@ -3307,7 +3616,9 @@ function normalizeChatCommandText(content) {
 }
 
 function getActiveGmIds() {
-  return game.users.filter((u) => u.isGM && u.active).map((u) => u.id);
+  return getSsCollectionDocuments(game.users)
+    .filter((u) => u?.isGM && (u.active || u.isActive || u.isActiveGM || (u.isSelf && game.user?.isGM)))
+    .map((u) => u.id);
 }
 
 const ssNoGmDialogState = globalThis.__SS_NO_GM_DIALOG_STATE__ ?? (globalThis.__SS_NO_GM_DIALOG_STATE__ = {
@@ -4922,7 +5233,7 @@ function getProxyTargetsForUser(userId) {
   return data;
 }
 
-function applyTargetsForCurrentGmUser(tokenIds) {
+function applyTargetsForCurrentGmUser(tokenIds, { sceneId = "" } = {}) {
   if (!game.user?.isGM) return [];
   if (!canvas?.ready) return [];
 
@@ -4933,7 +5244,8 @@ function applyTargetsForCurrentGmUser(tokenIds) {
   ));
 
   try {
-    game.user.updateTokenTargets?.(validIds);
+    if (typeof game.user.updateTokenTargets === "function") game.user.updateTokenTargets(validIds);
+    else if (typeof game.user._onUpdateTokenTargets === "function") game.user._onUpdateTokenTargets(validIds);
   } catch (_err) {
     // noop
   }
@@ -4952,7 +5264,12 @@ function applyTargetsForCurrentGmUser(tokenIds) {
   }
 
   try {
-    game.user.broadcastActivity?.({ targets: validIds });
+    const sid = String(sceneId ?? game.scenes?.viewed?.id ?? canvas?.scene?.id ?? "").trim();
+    game.user.broadcastActivity?.({
+      targets: validIds,
+      scene: sid || undefined,
+      sceneId: sid || undefined
+    });
   } catch (_err) {
     // noop
   }
@@ -6146,6 +6463,179 @@ Hooks.on("ready", () => {
   }, { capture: true }); // <-- important
 });
 
+function getSsTokenLinkAction(anchor) {
+  if (!(anchor instanceof HTMLElement)) return "";
+
+  const explicit = String(
+    anchor.dataset.ssAction
+    ?? anchor.dataset.ssTokenAction
+    ?? ""
+  ).trim().toLowerCase();
+
+  if (["show", "reveal", "enable", "unhide", "visible"].includes(explicit)) return "show";
+  if (["hide", "conceal", "disable", "hidden"].includes(explicit)) return "hide";
+  if (explicit === "toggle") return "toggle";
+
+  const label = String(anchor.textContent ?? "").trim().toLowerCase();
+  if (/^(show|reveal|enable|unhide)\b/.test(label)) return "show";
+  if (/^(hide|conceal|disable)\b/.test(label)) return "hide";
+  if (/^toggle\b/.test(label)) return "toggle";
+
+  return "";
+}
+
+function findSsTokenDocOnScene(sceneDoc, tokenId = "") {
+  const tid = String(tokenId ?? "").trim();
+  if (!sceneDoc || !tid) return null;
+  if (typeof sceneDoc.tokens?.get === "function") return sceneDoc.tokens.get(tid) ?? null;
+  return Array.from(sceneDoc.tokens?.contents ?? sceneDoc.tokens ?? [])
+    .find((tokenDoc) => String(tokenDoc?.id ?? "").trim() === tid) ?? null;
+}
+
+function findSsTokenDocById(tokenId = "", sceneId = "") {
+  const tid = String(tokenId ?? "").trim();
+  const sid = String(sceneId ?? "").trim();
+  if (!tid) return { tokenDoc: null, ambiguous: false };
+
+  if (sid) {
+    const sceneDoc = game.scenes?.get?.(sid)
+      ?? (String(game.scenes?.viewed?.id ?? "").trim() === sid ? game.scenes?.viewed ?? null : null);
+    return { tokenDoc: findSsTokenDocOnScene(sceneDoc, tid), ambiguous: false };
+  }
+
+  const matches = [];
+  for (const sceneDoc of (game.scenes ?? [])) {
+    const tokenDoc = findSsTokenDocOnScene(sceneDoc, tid);
+    if (!tokenDoc) continue;
+    matches.push(tokenDoc);
+    if (matches.length > 1) break;
+  }
+
+  return {
+    tokenDoc: matches.length === 1 ? matches[0] : null,
+    ambiguous: matches.length > 1
+  };
+}
+
+function getSsSceneTokenUuidParts(uuid = "") {
+  const raw = String(uuid ?? "").trim();
+  const match = raw.match(/^(Scene\.[^.]+\.Token\.[^.]+)(?:\.|$)/);
+  if (!match) return null;
+
+  const parts = match[1].split(".");
+  return {
+    rootUuid: match[1],
+    sceneId: String(parts[1] ?? "").trim(),
+    tokenId: String(parts[3] ?? "").trim()
+  };
+}
+
+function getSsTokenVisibilityLinkRequest(anchor) {
+  if (!(anchor instanceof HTMLElement)) return null;
+
+  const action = getSsTokenLinkAction(anchor);
+  if (!action) return null;
+
+  const tokenUuid = String(
+    anchor.dataset.ssTokenUuid
+    ?? anchor.dataset.uuid
+    ?? anchor.getAttribute("data-uuid")
+    ?? ""
+  ).trim();
+  const tokenUuidParts = getSsSceneTokenUuidParts(tokenUuid);
+  if (tokenUuidParts) {
+    return {
+      action,
+      requested: true,
+      tokenUuid: tokenUuidParts.rootUuid,
+      tokenId: tokenUuidParts.tokenId,
+      sceneId: tokenUuidParts.sceneId
+    };
+  }
+
+  const tokenId = String(anchor.dataset.ssTokenId ?? "").trim();
+  if (!tokenId) return null;
+
+  return {
+    action,
+    requested: true,
+    tokenUuid: "",
+    tokenId,
+    sceneId: String(anchor.dataset.ssSceneId ?? "").trim()
+  };
+}
+
+async function resolveSsTokenVisibilityLink(request) {
+  if (!request?.requested) {
+    return { tokenDoc: null, ambiguous: false, requested: false };
+  }
+
+  if (request.tokenUuid) {
+    const tokenDoc = await fromUuid(request.tokenUuid);
+    const isTokenDoc = tokenDoc instanceof TokenDocument || tokenDoc?.documentName === "Token";
+    return {
+      tokenDoc: isTokenDoc ? tokenDoc : null,
+      ambiguous: false,
+      requested: true
+    };
+  }
+
+  const resolved = findSsTokenDocById(request.tokenId, request.sceneId);
+  return {
+    ...resolved,
+    requested: true
+  };
+}
+
+async function handleSsTokenVisibilityLink(event) {
+  const anchor = event.target?.closest?.("a.entity-link, a.content-link, a[data-ss-token-id], a[data-ss-token-uuid]");
+  if (!(anchor instanceof HTMLElement)) return false;
+
+  const request = getSsTokenVisibilityLinkRequest(anchor);
+  if (!request) return false;
+
+  // Cancel the journal/entity-link click immediately so Foundry does not
+  // open the token actor sheet before our visibility action runs.
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+
+  const { tokenDoc, ambiguous, requested } = await resolveSsTokenVisibilityLink(request);
+  if (!requested) return false;
+
+  if (ambiguous) {
+    ui.notifications.warn("Multiple tokens matched that ID. Add data-ss-scene-id or use a full token UUID link.");
+    return true;
+  }
+
+  if (!tokenDoc) {
+    ui.notifications.warn("Could not find that token.");
+    return true;
+  }
+
+  const isHidden = !!tokenDoc.hidden;
+  const nextHidden = request.action === "toggle" ? !isHidden : request.action === "hide";
+  if (nextHidden === isHidden) return true;
+
+  await tokenDoc.update({ hidden: nextHidden });
+  debugLog(`${nextHidden ? "🙈 Hid" : "👁️ Revealed"} token: ${tokenDoc.name ?? tokenDoc.id}`);
+  return true;
+}
+
+// Shows/hides scene tokens from journal quick links.
+Hooks.once("ready", () => {
+  if (!game.user.isGM) return;
+
+  document.body.addEventListener("click", async (event) => {
+    try {
+      await handleSsTokenVisibilityLink(event);
+    } catch (err) {
+      console.error("Token visibility link error:", err);
+      ui.notifications.error("Failed to change the token visibility.");
+    }
+  }, true);
+});
+
 // Toggles Tile visibility via UUID links
 Hooks.once("ready", () => {
   if (!game.user.isGM) return;
@@ -6215,6 +6705,7 @@ Hooks.once("ready", () => {
 
 // Intercept playlist sound start
 Hooks.once("ready", () => {
+  if (!globalThis.Sound?.prototype?.play) return;
   debugLog("🎵 GM-only audio override active (v13)");
 
   // Patch Sound.play to only work for GM
@@ -6243,6 +6734,141 @@ Hooks.once("ready", () => {
     };
   }
 });
+
+// Intercept client audio for Sheet Sidekick player/monitor clients across Foundry audio APIs.
+function logBlockedSheetSidekickAudio(source = "") {
+  debugLog("Sheet Sidekick blocked client audio:", source || "unknown source");
+}
+
+function stopSheetSidekickBlockedAudio() {
+  if (!shouldBlockClientAudio()) return;
+  try {
+    for (const sound of (game.audio?.playing?.values?.() ?? [])) {
+      try { sound?.stop?.({ fade: 0 }); } catch (_err) { /* noop */ }
+    }
+  } catch (_err) {
+    // noop
+  }
+
+  try {
+    document.querySelectorAll("audio").forEach((audio) => {
+      try {
+        audio.pause();
+        audio.currentTime = 0;
+      } catch (_err) {
+        // noop
+      }
+    });
+  } catch (_err) {
+    // noop
+  }
+}
+
+function patchSheetSidekickAudioMethod(target, methodName, handler) {
+  if (!target || typeof target[methodName] !== "function") return false;
+  const flag = `__ssAudioGuard_${methodName}`;
+  if (target[flag] === true) return true;
+  const original = target[methodName];
+  target[methodName] = function (...args) {
+    return handler.call(this, original, args);
+  };
+  target[flag] = true;
+  return true;
+}
+
+function getSheetSidekickSoundClasses() {
+  return Array.from(new Set([
+    globalThis.Sound,
+    globalThis.foundry?.audio?.Sound
+  ].filter(Boolean)));
+}
+
+function getSheetSidekickPlaylistSoundClasses() {
+  return Array.from(new Set([
+    globalThis.PlaylistSound,
+    globalThis.foundry?.documents?.PlaylistSound
+  ].filter(Boolean)));
+}
+
+function installSheetSidekickAudioGuard() {
+  let patched = false;
+
+  for (const SoundClass of getSheetSidekickSoundClasses()) {
+    const proto = SoundClass?.prototype;
+    patched = patchSheetSidekickAudioMethod(proto, "play", function (original, args) {
+      if (!shouldBlockClientAudio()) return original.apply(this, args);
+      logBlockedSheetSidekickAudio(this?.src || this?.path || this?.data?.path || "");
+      stopSheetSidekickBlockedAudio();
+      return Promise.resolve(null);
+    }) || patched;
+    patched = patchSheetSidekickAudioMethod(proto, "playAtPosition", function (original, args) {
+      if (!shouldBlockClientAudio()) return original.apply(this, args);
+      logBlockedSheetSidekickAudio(this?.src || this?.path || this?.data?.path || "");
+      stopSheetSidekickBlockedAudio();
+      return Promise.resolve(null);
+    }) || patched;
+    patched = patchSheetSidekickAudioMethod(proto, "_play", function (original, args) {
+      if (!shouldBlockClientAudio()) return original.apply(this, args);
+      logBlockedSheetSidekickAudio(this?.src || this?.path || this?.data?.path || "");
+      stopSheetSidekickBlockedAudio();
+      return undefined;
+    }) || patched;
+    patched = patchSheetSidekickAudioMethod(proto, "load", function (original, args) {
+      if (shouldBlockClientAudio() && args?.[0]?.autoplay) {
+        args = [{ ...args[0], autoplay: false }, ...args.slice(1)];
+      }
+      return original.apply(this, args);
+    }) || patched;
+  }
+
+  for (const PlaylistSoundClass of getSheetSidekickPlaylistSoundClasses()) {
+    patched = patchSheetSidekickAudioMethod(PlaylistSoundClass?.prototype, "play", function (original, args) {
+      if (!shouldBlockClientAudio()) return original.apply(this, args);
+      const sound = this?.sound ?? null;
+      logBlockedSheetSidekickAudio(this?.path || this?.data?.path || sound?.src || "");
+      try { sound?.stop?.({ fade: 0 }); } catch (_err) { /* noop */ }
+      stopSheetSidekickBlockedAudio();
+      return null;
+    }) || patched;
+  }
+
+  const audioHelpers = Array.from(new Set([
+    globalThis.AudioHelper,
+    globalThis.foundry?.audio?.AudioHelper
+  ].filter(Boolean)));
+  for (const AudioHelperClass of audioHelpers) {
+    patched = patchSheetSidekickAudioMethod(AudioHelperClass, "play", function (original, args) {
+      if (!shouldBlockClientAudio()) return original.apply(this, args);
+      logBlockedSheetSidekickAudio(args?.[0]?.src || args?.[0] || "");
+      stopSheetSidekickBlockedAudio();
+      return null;
+    }) || patched;
+  }
+
+  patched = patchSheetSidekickAudioMethod(game.audio, "play", function (original, args) {
+    if (!shouldBlockClientAudio()) return original.apply(this, args);
+    logBlockedSheetSidekickAudio(args?.[0] || "");
+    stopSheetSidekickBlockedAudio();
+    return Promise.resolve(null);
+  }) || patched;
+
+  patched = patchSheetSidekickAudioMethod(globalThis.HTMLAudioElement?.prototype, "play", function (original, args) {
+    if (!shouldBlockClientAudio()) return original.apply(this, args);
+    logBlockedSheetSidekickAudio(this?.currentSrc || this?.src || "");
+    try {
+      this.pause();
+      this.currentTime = 0;
+    } catch (_err) {
+      // noop
+    }
+    return Promise.resolve();
+  }) || patched;
+
+  if (patched) debugLog("Sheet Sidekick audio guard active.");
+  stopSheetSidekickBlockedAudio();
+}
+
+Hooks.once("ready", installSheetSidekickAudioGuard);
 
 // --- Enforce list view only (remove legacy detailed view toggle UI) ----------
 (() => {
@@ -6353,6 +6979,8 @@ Hooks.on("userConnected", () => {
   setTimeout(emitPlayerControlsStateFromGm, 1000);
   setTimeout(() => queueSsDpadViewportLockSyncFromGm(), 300);
   setTimeout(() => queueSsDpadViewportLockSyncFromGm(), 1100);
+  setTimeout(() => emitSsPauseStateFromGm(), 350);
+  setTimeout(() => emitSsPauseStateFromGm(), 1150);
 });
 
 // 2. PLAYER UI INJECTION
@@ -6571,10 +7199,7 @@ function injectSheetDpad(app, element) {
     };
 
     const getCurrentSceneId = () => {
-      return game.combat?.scene?.id
-        ?? game.combat?.sceneId
-        ?? game.scenes?.viewed?.id
-        ?? "";
+      return getSsEffectiveSceneId();
     };
 
     const getTargetTokenStateMeta = (tokenDoc) => {
@@ -6655,53 +7280,71 @@ function injectSheetDpad(app, element) {
         return { sceneId, rows, reason: "", title: "Combat Ping", inCombat: true };
       }
 
-      const sceneId = game.scenes?.viewed?.id ?? "";
-      const sceneDoc = sceneId ? (game.scenes?.get?.(sceneId) ?? game.scenes?.viewed ?? null) : null;
-      const partyActorIds = new Set(
-        (game.actors?.filter?.((a) => a?.type === "character" && a.hasPlayerOwner) ?? [])
-          .map((a) => String(a?.id ?? ""))
-          .filter(Boolean)
-      );
-      const extraActorIds = new Set(
-        (game.actors?.filter?.((a) => {
-          try { return readSsTargetListInclude(a); }
-          catch (_err) { return false; }
-        }) ?? [])
-          .map((a) => String(a?.id ?? ""))
-          .filter(Boolean)
-      );
-      const allowedActorIds = new Set([...partyActorIds, ...extraActorIds]);
-      const sceneTokens = sceneDoc?.tokens
-        ? Array.from(sceneDoc.tokens?.contents ?? sceneDoc.tokens ?? [])
-        : [];
-      const rows = sceneTokens
-        .filter((tokenDoc) => {
-          if (!tokenDoc?.id) return false;
-          if (tokenDoc.hidden) return false;
-          if (getTargetTokenStateMeta(tokenDoc).dead) return false;
-          const actorId = String(tokenDoc.actorId ?? "");
-          return !!actorId && allowedActorIds.has(actorId);
-        })
-        .map((tokenDoc) => {
-          const actorDoc = tokenDoc.actor ?? game.actors?.get?.(tokenDoc.actorId) ?? null;
-          const actorId = String(tokenDoc.actorId ?? "");
-          const stateMeta = getTargetTokenStateMeta(tokenDoc);
-          return {
-            tokenId: tokenDoc.id ?? "",
-            actorId,
-            name: tokenDoc.name ?? actorDoc?.name ?? "Unknown",
-            img: tokenDoc.texture?.src ?? actorDoc?.img ?? "",
-            stateHtml: stateMeta.statusHtml ?? "",
-            disabled: false
-          };
-        })
+      const sceneId = getSsEffectiveSceneId({ preferCombat: false });
+      const sceneDoc = sceneId
+        ? (game.scenes?.get?.(sceneId) ?? (String(game.scenes?.viewed?.id ?? "") === sceneId ? game.scenes?.viewed ?? null : null))
+        : null;
+      const actors = getSsCollectionDocuments(game.actors);
+      const actorHasPlayerOwner = (actorDoc) => {
+        if (!actorDoc) return false;
+        const hasPlayerOwner = (typeof actorDoc.hasPlayerOwner === "function")
+          ? actorDoc.hasPlayerOwner()
+          : actorDoc.hasPlayerOwner;
+        if (hasPlayerOwner) return true;
+        const ownerLevel = CONST?.DOCUMENT_OWNERSHIP_LEVELS?.OWNER ?? 3;
+        return getSsCollectionDocuments(game.users)
+          .some((user) => !user?.isGM && actorDoc.testUserPermission?.(user, ownerLevel));
+      };
+      const partyActorIds = new Set();
+      getSsCollectionDocuments(game.users).forEach((user) => {
+        if (user?.isGM) return;
+        const characterId = String(user?.character?.id ?? user?.characterId ?? "").trim();
+        if (characterId) partyActorIds.add(characterId);
+      });
+      actors
+        .filter((a) => a?.type === "character" && actorHasPlayerOwner(a))
+        .forEach((a) => {
+          const actorId = String(a?.id ?? "").trim();
+          if (actorId) partyActorIds.add(actorId);
+        });
+      const allowedActorIds = new Set([...partyActorIds]);
+      const sceneTokens = getSsSceneTokenDocs(sceneDoc);
+      const rowsByKey = new Map();
+      const addRow = (row) => {
+        const key = row.tokenId ? `token:${row.tokenId}` : `actor:${row.actorId}`;
+        if (!key || rowsByKey.has(key)) return;
+        rowsByKey.set(key, row);
+      };
+
+      for (const tokenDoc of sceneTokens) {
+        if (!tokenDoc?.id) continue;
+        if (tokenDoc.hidden) continue;
+        if (getTargetTokenStateMeta(tokenDoc).dead) continue;
+        const actorDoc = tokenDoc.actor ?? game.actors?.get?.(tokenDoc.actorId) ?? null;
+        const actorId = String(tokenDoc.actorId ?? actorDoc?.id ?? "").trim();
+        const includedByActor = !!actorId && allowedActorIds.has(actorId);
+        const includedManually = isSsManualTargetIncluded(sceneId, tokenDoc, actorId);
+        if (!includedByActor && !includedManually) continue;
+        const stateMeta = getTargetTokenStateMeta(tokenDoc);
+        addRow({
+          tokenId: tokenDoc.id ?? "",
+          actorId,
+          name: tokenDoc.name ?? actorDoc?.name ?? "Unknown",
+          img: tokenDoc.texture?.src ?? actorDoc?.img ?? "",
+          stateHtml: stateMeta.statusHtml ?? "",
+          note: "",
+          disabled: false
+        });
+      }
+
+      const rows = Array.from(rowsByKey.values())
         .sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? "")));
 
       if (!rows.length) {
         return {
           sceneId,
           rows,
-          reason: "No visible party/allowed tokens in this scene.",
+          reason: "No visible player or manually added tokens on the GM's current scene.",
           title: "Targets/Ping",
           inCombat: false
         };
@@ -6719,7 +7362,7 @@ function injectSheetDpad(app, element) {
       const actorId = String(actor?.id ?? "");
       if (!actorId) return null;
       const sceneDoc = getSsSceneDoc(sid);
-      const sceneTokens = Array.from(sceneDoc?.tokens?.contents ?? sceneDoc?.tokens ?? []);
+      const sceneTokens = getSsSceneTokenDocs(sceneDoc);
       return sceneTokens.find((t) => String(t?.actorId ?? "") === actorId && !t?.hidden) ?? null;
     };
 
@@ -6737,7 +7380,7 @@ function injectSheetDpad(app, element) {
     const getDistanceFeet = (sid, tokenId) => {
       if (!tokenId) return null;
       const sceneDoc = getSsSceneDoc(sid);
-      const sceneTokens = Array.from(sceneDoc?.tokens?.contents ?? sceneDoc?.tokens ?? []);
+      const sceneTokens = getSsSceneTokenDocs(sceneDoc);
       const fromToken = getActorTokenDocForScene(sid);
       const toToken = sceneTokens.find((t) => String(t?.id ?? "") === String(tokenId)) ?? null;
       if (!fromToken || !toToken) return "";
@@ -6859,9 +7502,10 @@ function injectSheetDpad(app, element) {
             ${allowTargetingActions ? `<input type="checkbox" class="ss-target-check" value="${rowRef}" ${isSelected ? "checked" : ""} ${rowDisabled ? "disabled" : ""}>` : ""}
             <span class="ss-target-avatar"${row.img ? ` style="background-image:url('${row.img}')"` : ""}></span>
             <span class="ss-target-name">
-              <span class="ss-target-name-main">${row.name} ${selfTagHtml}</span>
+              <span class="ss-target-name-main">${escapeHtml(row.name)} ${selfTagHtml}</span>
               ${row.stateHtml || ""}
               ${feetLabel ? `<small class="ss-target-distance">${escapeHtml(feetLabel)}${outOfRange ? " - out of range" : ""}</small>` : ""}
+              ${row.note ? `<small class="ss-target-distance">${escapeHtml(row.note)}</small>` : ""}
             </span>
           </label>
           <button type="button" class="ss-target-ping" ${(row.disabled || !rowRef) ? "disabled" : ""}>Ping</button>
@@ -7355,9 +7999,13 @@ Hooks.on("renderActorSheet", injectSheetDpad);
 globalThis.ssInjectSheetDpad = injectSheetDpad;
 
 Hooks.on("pauseGame", (...args) => {
-  if (game.user?.isGM) return;
   const pausedArg = args.find((a) => typeof a === "boolean");
-  syncPlayerPauseBanner((typeof pausedArg === "boolean") ? pausedArg : !!game.paused);
+  const paused = (typeof pausedArg === "boolean") ? pausedArg : !!game.paused;
+  if (game.user?.isGM) {
+    emitSsPauseStateFromGm(paused);
+    return;
+  }
+  syncPlayerPauseBanner(paused);
 });
 
 function syncOpenSheetDpadLocks() {
@@ -7427,7 +8075,10 @@ globalThis.ssQueueSheetSidekickFormRefresh = queueSheetSidekickFormRefresh;
 
 // Fallback for clients where sheet nav renders after hooks (common on mobile Safari).
 Hooks.on("ready", () => {
-  if (game.user?.isGM) return;
+  if (game.user?.isGM) {
+    setTimeout(() => emitSsPauseStateFromGm(), 500);
+    return;
+  }
   setDpadEnabledOverride(isDpadEnabledByGm());
   syncPlayerPauseBanner(!!game.paused);
   seedSsViewedSceneTokenPositions();
@@ -7563,6 +8214,10 @@ Hooks.on("updateToken", (tokenDoc, changed) => {
     return;
   }
   noteSsPlayerMovementFromTokenUpdate(tokenDoc, changed);
+  const changedTargetListFlag =
+    foundry.utils.hasProperty(changed, `flags.${SS_MODULE_ID}.${SS_TARGET_LIST_FLAG_KEY}`)
+    || foundry.utils.hasProperty(changed, "flags.custom-js.ssTargetListInclude");
+  if (changedTargetListFlag) queueSheetSidekickFormRefresh(80);
 });
 
 Hooks.on("deleteToken", (tokenDoc) => {
@@ -7707,13 +8362,14 @@ Hooks.on("renderTokenHUD", (app, html) => {
   if (!(btn instanceof HTMLElement)) return;
 
   const sync = () => {
-    const enabled = readSsTargetListInclude(worldActor);
+    const sceneId = String(tokenDoc?.parent?.id ?? getSsEffectiveSceneId({ preferCombat: false }) ?? "").trim();
+    const enabled = isSsManualTargetIncluded(sceneId, tokenDoc, actorId);
     btn.classList.toggle("active", enabled);
     const icon = btn.querySelector("i");
     if (icon instanceof HTMLElement) icon.className = enabled ? "fa-solid fa-user-check" : "fa-solid fa-user-plus";
     const hint = enabled
-      ? "Included in Sheet Sidekick out-of-combat Targets/Ping list (click to remove)"
-      : "Add this actor to Sheet Sidekick out-of-combat Targets/Ping list";
+      ? "Included in Sheet Sidekick Targets/Ping list for this scene (click to remove)"
+      : "Add this token to Sheet Sidekick Targets/Ping list for this scene";
     btn.setAttribute("title", hint);
     btn.setAttribute("aria-label", hint);
     btn.setAttribute("data-tooltip", hint);
@@ -7724,8 +8380,17 @@ Hooks.on("renderTokenHUD", (app, html) => {
   btn.onclick = async (ev) => {
     ev.preventDefault();
     ev.stopPropagation();
-    const enabled = readSsTargetListInclude(worldActor);
-    await writeSsTargetListInclude(worldActor, !enabled);
+    const sceneId = String(tokenDoc?.parent?.id ?? getSsEffectiveSceneId({ preferCombat: false }) ?? "").trim();
+    const enabled = isSsManualTargetIncluded(sceneId, tokenDoc, actorId);
+    setSsGmSceneId(sceneId, { resetManualTargets: false });
+    setSsManualTargetMembership({
+      sceneId,
+      actorId,
+      tokenId: String(tokenDoc?.id ?? ""),
+      enabled: !enabled
+    });
+    emitSsManualTargetListStateFromGm(sceneId);
+    queueSsTargetUiSyncFromGm(sceneId);
     sync();
   };
 });
@@ -7743,7 +8408,7 @@ async function executeSsTargetCommand({ mode, sceneId, payload, timestamp, userI
   const getSceneTokenDoc = (tokenId) => {
     if (!tokenId) return null;
     if (sceneDoc?.tokens?.get) return sceneDoc.tokens.get(tokenId) ?? null;
-    const sceneTokens = Array.from(sceneDoc?.tokens?.contents ?? sceneDoc?.tokens ?? []);
+    const sceneTokens = getSsSceneTokenDocs(sceneDoc);
     return sceneTokens.find((t) => String(t?.id ?? "") === String(tokenId)) ?? null;
     return null;
   };
@@ -7781,7 +8446,7 @@ async function executeSsTargetCommand({ mode, sceneId, payload, timestamp, userI
     }
 
     if (mode === "actor" || mode === "a") {
-      const sceneTokens = Array.from(sceneDoc?.tokens?.contents ?? sceneDoc?.tokens ?? []);
+      const sceneTokens = getSsSceneTokenDocs(sceneDoc);
       const tokenDoc = sceneTokens.find((t) => String(t?.actorId ?? "") === value && !t.hidden)
         ?? null;
       const tokenId = String(tokenDoc?.id ?? "");
@@ -7838,9 +8503,9 @@ async function executeSsTargetCommand({ mode, sceneId, payload, timestamp, userI
 
     try {
       // Immediate GM-side proxy targeting so no player canvas is required.
-      const viewedSceneId = game.scenes?.viewed?.id ?? null;
+      const viewedSceneId = getSsKnownGmSceneId() || null;
       if (!effectiveSceneId || !viewedSceneId || viewedSceneId === effectiveSceneId) {
-        applyTargetsForCurrentGmUser(tokenIds);
+        applyTargetsForCurrentGmUser(tokenIds, { sceneId: effectiveSceneId ?? "" });
       }
     } catch (err) {
       console.warn("Target apply failed:", err);
@@ -9157,6 +9822,26 @@ Hooks.once("ready", () => {
     if (data.type === "ssDpadViewportLock" && !game.user?.isGM) {
       setPlayerDpadViewportLockState(data);
       syncOpenSheetDpadLocks();
+      syncOpenTargetPanelsWithLiveTargets();
+      refreshAllUseConfirmLiveTargetSummaries();
+      return;
+    }
+
+    if (data.type === "ssTargetListState" && !game.user?.isGM) {
+      const sceneId = String(data.sceneId ?? "").trim();
+      setSsGmSceneId(sceneId, { resetManualTargets: false });
+      setSsManualTargetList(sceneId, {
+        actorIds: Array.isArray(data.actorIds) ? data.actorIds : [],
+        tokenIds: Array.isArray(data.tokenIds) ? data.tokenIds : []
+      });
+      refreshSheetSidekickForms();
+      syncOpenTargetPanelsWithLiveTargets();
+      refreshAllUseConfirmLiveTargetSummaries();
+      return;
+    }
+
+    if (data.type === "ssPause" && !game.user?.isGM) {
+      syncPlayerPauseBanner(!!data.paused);
       return;
     }
 
@@ -9266,8 +9951,7 @@ Hooks.once("ready", () => {
 
     if (data.type === "ssTargetUiSync" && !game.user?.isGM) {
       const incomingSceneId = String(data.sceneId ?? "").trim();
-      const viewedSceneId = String(game.scenes?.viewed?.id ?? "").trim();
-      if (incomingSceneId && viewedSceneId && incomingSceneId !== viewedSceneId) return;
+      if (incomingSceneId) setSsGmSceneId(incomingSceneId, { resetManualTargets: false });
       syncOpenTargetPanelsWithLiveTargets();
       refreshAllUseConfirmLiveTargetSummaries();
       return;
@@ -9275,6 +9959,11 @@ Hooks.once("ready", () => {
 
     if (data.type === "ssJournalImageShow" && !game.user?.isGM) {
       showSsSharedJournalImageForPlayer(data);
+      return;
+    }
+
+    if (data.type === "ssBurstRuler" && !game.user?.isGM) {
+      handleSsBurstRulerSocketForPlayer(data);
       return;
     }
 
@@ -9452,12 +10141,14 @@ function bindTapToCast(app, element) {
         }
         const qtyInput = row.querySelector(".item-detail.item-quantity input[data-name='system.quantity']");
         if (qtyInput instanceof HTMLInputElement) {
-          qtyInput.readOnly = true;
-          qtyInput.setAttribute("aria-readonly", "true");
+          qtyInput.readOnly = false;
+          qtyInput.removeAttribute("aria-readonly");
+          qtyInput.disabled = false;
         }
         row.querySelectorAll(".item-detail.item-quantity .adjustment-button").forEach((btn) => {
-          btn.setAttribute("aria-disabled", "true");
-          btn.classList.add("disabled");
+          btn.removeAttribute("aria-disabled");
+          btn.removeAttribute("disabled");
+          btn.classList.remove("disabled");
         });
 
         if (!isTapToUseItem(item)) return;
@@ -10175,7 +10866,7 @@ Hooks.once("ready", () => {
         ignoreCost: true
       }
     });
-    recordSsGmBurstRuler(tokenDoc, previous, target);
+    recordSsGmBurstRuler(tokenDoc, previous, target, userId);
   };
   globalThis.__SS_EXECUTE_DPAD_COMMAND__ = executeDpadCommand;
 
@@ -10229,10 +10920,10 @@ Hooks.once("ready", () => {
     try {
       const proxyTargets = getProxyTargetsForUser(userId);
       if (proxyTargets && canvas?.ready) {
-        const viewedSceneId = game.scenes?.viewed?.id ?? null;
+          const viewedSceneId = getSsKnownGmSceneId() || null;
         const sameScene = !proxyTargets.sceneId || !viewedSceneId || proxyTargets.sceneId === viewedSceneId;
         if (sameScene) {
-          applyTargetsForCurrentGmUser(proxyTargets.tokenIds ?? []);
+          applyTargetsForCurrentGmUser(proxyTargets.tokenIds ?? [], { sceneId: proxyTargets.sceneId ?? "" });
         }
       }
 
