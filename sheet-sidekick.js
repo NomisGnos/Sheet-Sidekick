@@ -3445,6 +3445,63 @@ function emitSsDpadViewportLockStateFromGm(sceneId = "") {
   emitSsManualTargetListStateFromGm(sid);
 }
 
+function buildSsFullStateSnapshotFromGm(sceneId = "") {
+  if (!game.user?.isGM) return null;
+  const sid = String(
+    sceneId
+    || game.combat?.scene?.id
+    || game.combat?.sceneId
+    || game.scenes?.viewed?.id
+    || canvas?.scene?.id
+    || ""
+  ).trim();
+  if (sid) setSsGmSceneId(sid);
+  const list = sid ? getSsManualTargetList(sid) : { actorIds: [], tokenIds: [] };
+  return {
+    type: "ssStateSnapshot",
+    sceneId: sid,
+    controls: {
+      enabled: !!(game.user.getFlag("world", "dpadEnabled") ?? true)
+    },
+    viewport: {
+      sceneId: sid,
+      byActorId: buildSsDpadViewportLockMapForGm(sid)
+    },
+    targetList: {
+      sceneId: sid,
+      actorIds: list.actorIds,
+      tokenIds: list.tokenIds
+    },
+    paused: !!game.paused,
+    at: Date.now(),
+    gmUserId: game.user?.id ?? null
+  };
+}
+
+function emitSsFullStateSnapshotFromGm(sceneId = "") {
+  const payload = buildSsFullStateSnapshotFromGm(sceneId);
+  if (!payload) return false;
+  return emitSsSocketMessage(payload);
+}
+
+function queueSsFullStateSnapshotFromGm(sceneId = "", delayMs = 250) {
+  if (!game.user?.isGM) return;
+  const sid = String(
+    sceneId
+    || game.combat?.scene?.id
+    || game.combat?.sceneId
+    || game.scenes?.viewed?.id
+    || canvas?.scene?.id
+    || ""
+  ).trim();
+  if (sid) ssFullStateSyncEmitState.sceneId = sid;
+  if (ssFullStateSyncEmitState.timer) window.clearTimeout(ssFullStateSyncEmitState.timer);
+  ssFullStateSyncEmitState.timer = window.setTimeout(() => {
+    ssFullStateSyncEmitState.timer = null;
+    emitSsFullStateSnapshotFromGm(ssFullStateSyncEmitState.sceneId || sid);
+  }, Math.max(0, Number(delayMs) || 0));
+}
+
 function queueSsTargetUiSyncFromGm(sceneId = "") {
   if (!game.user?.isGM) return;
   const sid = String(
@@ -3613,6 +3670,25 @@ function isTapToUseItem(item) {
 function normalizeChatCommandText(content) {
   const raw = String(content ?? "");
   return raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function registerSsChatCommandHandler(commandPrefix, handler) {
+  const prefix = String(commandPrefix ?? "").trim().toLowerCase();
+  if (!prefix || typeof handler !== "function") return;
+
+  const handlers = globalThis.__SS_CHAT_COMMAND_HANDLERS__ ?? (globalThis.__SS_CHAT_COMMAND_HANDLERS__ = new Map());
+  handlers.set(prefix, handler);
+
+  if (globalThis.__SS_CHAT_COMMAND_ROUTER__) return;
+  globalThis.__SS_CHAT_COMMAND_ROUTER__ = async (msg) => {
+    const text = normalizeChatCommandText(msg?.content);
+    if (!text) return;
+    const command = String(text.split(/\s+/, 1)[0] ?? "").toLowerCase();
+    const fn = globalThis.__SS_CHAT_COMMAND_HANDLERS__?.get(command);
+    if (typeof fn !== "function") return;
+    await fn(msg);
+  };
+  Hooks.on("createChatMessage", globalThis.__SS_CHAT_COMMAND_ROUTER__);
 }
 
 function getActiveGmIds() {
@@ -5197,6 +5273,10 @@ const ssTargetUiSyncEmitState = globalThis.__SS_TARGET_UI_SYNC_EMIT_STATE__ ?? (
   sceneId: ""
 });
 const ssDpadViewportEmitState = globalThis.__SS_DPAD_VIEWPORT_EMIT_STATE__ ?? (globalThis.__SS_DPAD_VIEWPORT_EMIT_STATE__ = {
+  timer: null,
+  sceneId: ""
+});
+const ssFullStateSyncEmitState = globalThis.__SS_FULL_STATE_SYNC_EMIT_STATE__ ?? (globalThis.__SS_FULL_STATE_SYNC_EMIT_STATE__ = {
   timer: null,
   sceneId: ""
 });
@@ -6952,10 +7032,7 @@ Hooks.once("ready", () => {
 
   // Initial render
   updateVisuals();
-  emitPlayerControlsStateFromGm();
-  queueSsDpadViewportLockSyncFromGm();
-  setTimeout(emitPlayerControlsStateFromGm, 400);
-  setTimeout(() => queueSsDpadViewportLockSyncFromGm(), 450);
+  queueSsFullStateSnapshotFromGm("", 120);
 
   // Click Handler
   toggleBtn.addEventListener("click", async () => {
@@ -6964,8 +7041,7 @@ Hooks.once("ready", () => {
     
     await game.user.setFlag("world", "dpadEnabled", newState);
     await game.user.setFlag("world", "dpadRefreshAt", Date.now());
-    emitPlayerControlsStateFromGm();
-    queueSsDpadViewportLockSyncFromGm();
+    queueSsFullStateSnapshotFromGm("", 50);
     updateVisuals();
 
     if (newState) ui.notifications.info("Player Controls: Enabled");
@@ -6975,12 +7051,7 @@ Hooks.once("ready", () => {
 
 Hooks.on("userConnected", () => {
   if (!game.user?.isGM) return;
-  setTimeout(emitPlayerControlsStateFromGm, 250);
-  setTimeout(emitPlayerControlsStateFromGm, 1000);
-  setTimeout(() => queueSsDpadViewportLockSyncFromGm(), 300);
-  setTimeout(() => queueSsDpadViewportLockSyncFromGm(), 1100);
-  setTimeout(() => emitSsPauseStateFromGm(), 350);
-  setTimeout(() => emitSsPauseStateFromGm(), 1150);
+  queueSsFullStateSnapshotFromGm("", 350);
 });
 
 // 2. PLAYER UI INJECTION
@@ -9811,6 +9882,41 @@ Hooks.once("ready", () => {
   const handleSsSocketMessage = async (data) => {
     if (!data || typeof data !== "object") return;
 
+    if (data.type === "ssStateSnapshot" && !game.user?.isGM) {
+      const sceneId = String(data.sceneId ?? data.viewport?.sceneId ?? data.targetList?.sceneId ?? "").trim();
+      if (sceneId) setSsGmSceneId(sceneId, { resetManualTargets: false });
+
+      if (typeof data.controls?.enabled === "boolean") {
+        setDpadEnabledOverride(data.controls.enabled);
+      }
+
+      if (data.viewport && typeof data.viewport === "object") {
+        setPlayerDpadViewportLockState({
+          ...data.viewport,
+          sceneId: String(data.viewport.sceneId ?? sceneId),
+          gmUserId: data.gmUserId ?? data.viewport.gmUserId ?? null,
+          at: data.at ?? data.viewport.at ?? Date.now()
+        });
+      }
+
+      if (data.targetList && typeof data.targetList === "object") {
+        const targetSceneId = String(data.targetList.sceneId ?? sceneId).trim();
+        if (targetSceneId) {
+          setSsManualTargetList(targetSceneId, {
+            actorIds: Array.isArray(data.targetList.actorIds) ? data.targetList.actorIds : [],
+            tokenIds: Array.isArray(data.targetList.tokenIds) ? data.targetList.tokenIds : []
+          });
+        }
+      }
+
+      if (typeof data.paused === "boolean") syncPlayerPauseBanner(data.paused);
+      syncOpenSheetDpadLocks();
+      syncOpenTargetPanelsWithLiveTargets();
+      refreshAllUseConfirmLiveTargetSummaries();
+      queueSheetSidekickFormRefresh(180);
+      return;
+    }
+
     if (data.type === "ssControls" && !game.user?.isGM) {
       const enabled = !!data.enabled;
       setDpadEnabledOverride(enabled);
@@ -10655,10 +10761,23 @@ function bindTapToCast(app, element) {
   }
 }
 
-Hooks.on("renderActorSheetV2", decorateAlwaysPreparedSpellRowsForGm);
-Hooks.on("renderActorSheet", decorateAlwaysPreparedSpellRowsForGm);
-Hooks.on("renderActorSheetV2", bindTapToCast);
-Hooks.on("renderActorSheet", bindTapToCast);
+function handleSheetSidekickActorSheetRender(app, element) {
+  decorateAlwaysPreparedSpellRowsForGm(app, element);
+  bindTapToCast(app, element);
+  applySheetSidekickUiCleanup(app, element);
+
+  if (!game.user?.isGM) {
+    const actorId = String(app?.actor?.id ?? "");
+    if (actorId) {
+      recordSsScrollTrace("renderActorSheet", { actorId });
+      queueOpenSheetScrollRestore(actorId, 0);
+    }
+    startSheetSidekickUiEnsure(6000);
+  }
+}
+
+Hooks.on("renderActorSheetV2", handleSheetSidekickActorSheetRender);
+Hooks.on("renderActorSheet", handleSheetSidekickActorSheetRender);
 Hooks.on("renderJournalSheet", bindVanillaJournalImageShare);
 Hooks.on("renderJournalPageSheet", bindVanillaJournalImageShare);
 Hooks.on("renderJournalTextPageSheet", bindVanillaJournalImageShare);
@@ -10669,22 +10788,6 @@ Hooks.on("updateUser", (_user, changed) => {
   const activeChanged = !!foundry?.utils?.hasProperty?.(changed, "active");
   if (!activeChanged) return;
   refreshSsMapPingSnapshotRequestButtonForPlayer();
-});
-Hooks.on("renderActorSheetV2", applySheetSidekickUiCleanup);
-Hooks.on("renderActorSheet", applySheetSidekickUiCleanup);
-Hooks.on("renderActorSheetV2", (app) => {
-  if (game.user?.isGM) return;
-  const actorId = String(app?.actor?.id ?? "");
-  if (!actorId) return;
-  recordSsScrollTrace("renderActorSheetV2", { actorId });
-  queueOpenSheetScrollRestore(actorId, 0);
-});
-Hooks.on("renderActorSheet", (app) => {
-  if (game.user?.isGM) return;
-  const actorId = String(app?.actor?.id ?? "");
-  if (!actorId) return;
-  recordSsScrollTrace("renderActorSheet", { actorId });
-  queueOpenSheetScrollRestore(actorId, 0);
 });
 Hooks.on("canvasReady", () => {
   if (game.user?.isGM) return;
@@ -10700,12 +10803,6 @@ Hooks.on("canvasReady", () => {
 window.addEventListener("resize", () => {
   if (game.user?.isGM) return;
   queueSheetSidekickFormRefresh(80);
-});
-Hooks.on("renderActorSheetV2", () => {
-  startSheetSidekickUiEnsure(6000);
-});
-Hooks.on("renderActorSheet", () => {
-  startSheetSidekickUiEnsure(6000);
 });
 Hooks.on("renderApplicationV2", (app, html) => {
   if (!game.user?.isGM) return;
@@ -10786,6 +10883,7 @@ Hooks.once("ready", () => {
   if (!game.user.isGM) return;
 
   const COMMAND_PREFIX = "!dpad";
+  const dpadCommandThrottle = globalThis.__SS_DPAD_COMMAND_THROTTLE__ ?? (globalThis.__SS_DPAD_COMMAND_THROTTLE__ = new Map());
 
   function userOwnsTokenActor(userId, tokenDoc) {
     const actor = tokenDoc.actor;
@@ -10833,15 +10931,26 @@ Hooks.once("ready", () => {
     if (isEnabled === false) return;
     if (!canvas?.ready) return ui.notifications.warn("GM canvas not ready (view a scene).");
 
-    // LAG PREVENTION: Drop commands older than 2s
+    // LAG PREVENTION: Drop stale commands that arrive long after the tap.
     if (Number.isFinite(timestamp) && (Date.now() - timestamp > 10000)) {
       console.warn("Dropped old DPAD command due to lag:", Date.now() - timestamp, "ms");
       return;
     }
 
-    if (!["up", "down", "left", "right"].includes(String(dir ?? "").toLowerCase())) return;
+    const direction = String(dir ?? "").toLowerCase();
+    if (!["up", "down", "left", "right"].includes(direction)) return;
     if (!userId) return;
     if (getCombatTurnAccessForUser(userId, { combat: getActiveCombatForViewedScene() }).locked) return;
+
+    const now = Date.now();
+    const throttleKey = `${userId}:${direction}`;
+    const last = dpadCommandThrottle.get(throttleKey) ?? { at: 0, timestamp: 0 };
+    if (Number.isFinite(timestamp) && timestamp <= Number(last.timestamp ?? 0)) return;
+    if ((now - Number(last.at ?? 0)) < 80) return;
+    dpadCommandThrottle.set(throttleKey, {
+      at: now,
+      timestamp: Number.isFinite(timestamp) ? timestamp : now
+    });
 
     const tokenDoc = pickTokenForUser(userId);
     if (!tokenDoc) return ui.notifications.warn("No owned token for that user in viewed scene.");
@@ -10851,8 +10960,8 @@ Hooks.once("ready", () => {
     }
 
     const size = canvas.grid.size;
-    const dx = (dir === "left" ? -1 : dir === "right" ? 1 : 0) * size;
-    const dy = (dir === "up" ? -1 : dir === "down" ? 1 : 0) * size;
+    const dx = (direction === "left" ? -1 : direction === "right" ? 1 : 0) * size;
+    const dy = (direction === "up" ? -1 : direction === "down" ? 1 : 0) * size;
 
     const target = snapAndClampTokenPosition(tokenDoc, tokenDoc.x + dx, tokenDoc.y + dy, size);
     if (target.x === tokenDoc.x && target.y === tokenDoc.y) return;
@@ -10883,7 +10992,7 @@ Hooks.once("ready", () => {
     await executeDpadCommand({ dir, timestamp, userId });
   };
 
-  Hooks.on("createChatMessage", globalThis.__DPAD_CHAT_HOOK__);
+  registerSsChatCommandHandler(COMMAND_PREFIX, globalThis.__DPAD_CHAT_HOOK__);
 });
 
 // 4. GM EXECUTION LOGIC FOR TAP-TO-CAST
@@ -11011,7 +11120,7 @@ Hooks.once("ready", () => {
     await executeSsUseCommand({ actorId, itemId, timestamp, userId, slotLevel, ammoItemId });
   };
 
-  Hooks.on("createChatMessage", globalThis.__SS_USE_CHAT_HOOK__);
+  registerSsChatCommandHandler(COMMAND_PREFIX, globalThis.__SS_USE_CHAT_HOOK__);
 });
 
 // 5. GM EXECUTION LOGIC FOR SHEET-SIDEKICK ROLLS
@@ -11101,7 +11210,7 @@ Hooks.once("ready", () => {
     await executeSsRollCommand({ actorId, rollKind, rollKey, timestamp, userId });
   };
 
-  Hooks.on("createChatMessage", globalThis.__SS_ROLL_CHAT_HOOK__);
+  registerSsChatCommandHandler(COMMAND_PREFIX, globalThis.__SS_ROLL_CHAT_HOOK__);
 });
 
 // 6. GM EXECUTION LOGIC FOR SHEET-SIDEKICK REST REQUESTS
@@ -11152,7 +11261,7 @@ Hooks.once("ready", () => {
     await executeSsRestCommand({ actorId, restType, timestamp, userId });
   };
 
-  Hooks.on("createChatMessage", globalThis.__SS_REST_CHAT_HOOK__);
+  registerSsChatCommandHandler(COMMAND_PREFIX, globalThis.__SS_REST_CHAT_HOOK__);
 });
 
 // 7. GM EXECUTION LOGIC FOR SHEET-SIDEKICK SPELL PREP TOGGLE
@@ -11205,7 +11314,7 @@ Hooks.once("ready", () => {
     await executeSsPrepCommand({ actorId, itemId, prepared, timestamp, userId });
   };
 
-  Hooks.on("createChatMessage", globalThis.__SS_PREP_CHAT_HOOK__);
+  registerSsChatCommandHandler(COMMAND_PREFIX, globalThis.__SS_PREP_CHAT_HOOK__);
 });
 
 // 8. GM EXECUTION LOGIC FOR SHEET-SIDEKICK TARGETING
@@ -11230,5 +11339,5 @@ Hooks.once("ready", () => {
     await executeSsTargetCommand({ mode, sceneId, payload, timestamp, userId });
   };
 
-  Hooks.on("createChatMessage", globalThis.__SS_TARGET_CHAT_HOOK__);
+  registerSsChatCommandHandler(COMMAND_PREFIX, globalThis.__SS_TARGET_CHAT_HOOK__);
 });

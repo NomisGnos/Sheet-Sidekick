@@ -210,7 +210,11 @@ function buildActorRosterEntries() {
 }
 async function switchActiveActor(actor, render = true) {
   actorStorage.current = actor;
-  if (render) await actor.sheet.render(true);
+  if (render) {
+    const sheet = actor?.sheet;
+    if (sheet?.rendered) sheet.bringToTop?.();
+    else await sheet?.render(true);
+  }
   controlCurrentActorToken();
   saveLastActorId(actorStorage.current.id);
 }
