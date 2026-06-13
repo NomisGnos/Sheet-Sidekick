@@ -1,5 +1,12 @@
 # Sheet Sidekick
 
+[![Foundry VTT](https://img.shields.io/badge/Foundry_VTT-v13--v14.360-orange?style=for-the-badge)](https://foundryvtt.com/)
+[![D&D5e](https://img.shields.io/badge/D%26D5e-focused-red?style=for-the-badge)](https://foundryvtt.com/packages/dnd5e)
+[![Latest Release](https://img.shields.io/github/v/release/NomisGnos/Sheet-Sidekick?style=for-the-badge)](https://github.com/NomisGnos/Sheet-Sidekick/releases)
+[![Downloads](https://img.shields.io/github/downloads/NomisGnos/Sheet-Sidekick/total?style=for-the-badge)](https://github.com/NomisGnos/Sheet-Sidekick/releases)
+[![Changelog](https://img.shields.io/badge/changelog-CHANGELOG.md-555?style=for-the-badge)](CHANGELOG.md)
+[![Patreon](https://img.shields.io/badge/Patreon-drop%20a%20goodberry-F96854?style=for-the-badge&logo=patreon&logoColor=white)](https://www.patreon.com/cw/nomisDM)
+
 Sheet Sidekick is a Foundry VTT module for players who use a phone or tablet instead of the full Foundry canvas.
 
 It gives selected players a cleaner actor-sheet flow and routes canvas-heavy actions through the GM. The main use case is a table where the GM controls the map, while players use their own devices for their character sheet, item use, rests, target requests, and simple map pings.
@@ -111,23 +118,6 @@ Please visit my Patreon and drop me a goodberry:
 https://www.patreon.com/cw/nomisDM
 ```
 
-## Patch Notes
+## Changelog
 
-### v0.1.2
-
-- Manifest verified for Foundry v14.360 while keeping v13 as the minimum supported version.
-- Player-side local audio suppression was updated for v14 audio behavior.
-- Pause state is synced through the module socket so Sidekick players see when the GM pauses the game.
-- Select Target apply behavior was fixed for GM-authoritative targeting.
-- Out-of-combat Target/Ping lists now use the GM's current scene.
-- Manual Target/Ping additions are scene-scoped runtime entries and reset when the GM changes scenes.
-- Release metadata points at the `NomisGnos/Sheet-Sidekick` GitHub repo and the `v0.1.2` ZIP asset.
-
-### Current Module Shape
-
-- Module id: `sheet-sidekick`
-- Main files: `sheet-sidekick-core.js`, `sheet-sidekick.js`
-- Socket channel: `module.sheet-sidekick`
-- Main settings: `playerdata`, `mapPingApprovalMode`, `journalImageDisplaySeconds`
-- Template: `templates/player-access-panel.html`
-- Languages: `en`, `de`, `es`, `it`
+See [CHANGELOG.md](CHANGELOG.md) for release notes and maintenance history.
